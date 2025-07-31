@@ -1,3 +1,4 @@
+
 {% extends "base.html" %}
 
 {% block title %}{{ title }} - ICT Helpdesk{% endblock %}
@@ -16,20 +17,38 @@
                         <div class="alert alert-danger">{{ form.errors }}</div>
                     {% endif %}
 
-                   <!--
-                    
-                   <div class="mb-3">
-                        {{ form.location.label(class="form-label") }}
-                        {{ form.location(class="form-control") }}
+                    <!-- Location Section -->
+                    <div class="mb-3">
+                        <label for="location_department" class="form-label">Department</label>
+                        {{ form.location_department(class="form-control", id="location_department") }}
+                        {% if form.location_department.errors %}
+                            {% for error in form.location_department.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3" id="subunit-group" style="display:none;">
+                        <label for="location_subunit" class="form-label">Subunit</label>
+                        {{ form.location_subunit(class="form-control", id="location_subunit") }}
+                        {% if form.location_subunit.errors %}
+                            {% for error in form.location_subunit.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3" id="location-group" style="display:none;">
+                        <label for="location" class="form-label">Location</label>
+                        {{ form.location(class="form-control", id="location") }}
                         {% if form.location.errors %}
                             {% for error in form.location.errors %}
                                 <div class="text-danger small">{{ error }}</div>
                             {% endfor %}
                         {% endif %}
                     </div>
-                   
-                   --> 
 
+                    <!-- Description -->
                     <div class="mb-3 position-relative">
                         {{ form.description.label(class="form-label") }}
                         {{ form.description(class="form-control", rows="5", id="description-autocomplete") }}
@@ -41,6 +60,7 @@
                         {% endif %}
                     </div>
 
+                    <!-- Category and Priority -->
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ form.category_id.label(class="form-label") }}
@@ -63,6 +83,7 @@
                         </div>
                     </div>
 
+                    <!-- Assign To -->
                     {% if current_user.role in ['admin', 'intern'] %}
                     <div class="mb-3">
                         {{ form.assignees.label(class="form-label") }}
@@ -76,6 +97,7 @@
                     </div>
                     {% endif %}
 
+                    <!-- Attachments -->
                     <div class="mb-3">
                         <label for="attachments" class="form-label">Attachments</label>
                         <div id="drop-area" class="border rounded p-3 text-center bg-light" style="cursor:pointer;">
@@ -93,28 +115,6 @@
                             Allowed file types: txt, pdf, png, jpg, jpeg, gif, doc, docx, xls, xlsx (Max 16MB)
                         </div>
                     </div>
-                    <div class="mb-3" id="mis-subcategory-container" style="display:none;">
-                        <label for="mis_subcategory" class="form-label">MIS Subcategory</label>
-                        <select id="mis_subcategory" name="mis_subcategory" class="form-control">
-                            <option value="">Select Subcategory</option>
-                            <option value="AfyaKE">AfyaKE System</option>
-                            <option value="HRMIS">HRMIS</option>
-                            <option value="Others">Others</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="location_unit" class="form-label">Unit</label>
-                        {{ form.location_unit(class="form-control") }}
-                    </div>
-                    <div class="mb-3" id="location-subunit-group" style="display:none;">
-                        <label for="location_subunit" class="form-label">Subunit</label>
-                        {{ form.location_subunit(class="form-control") }}
-                    </div>
-                    <div class="mb-3" id="location-detail-group" style="display:none;">
-                        <label for="location_detail" class="form-label">Location Detail</label>
-                        {{ form.location_detail(class="form-control") }}
-                    </div>
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('tickets_list') }}" class="btn btn-secondary">
@@ -127,96 +127,86 @@
         </div>
     </div>
 </div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var categorySelect = document.getElementById('category_id');
-    var misSubcategoryContainer = document.getElementById('mis-subcategory-container');
-    var misSubcategorySelect = document.getElementById('mis_subcategory');
     // Multilevel location dropdown logic
-    const unitSelect = document.getElementById('location_unit');
-    const subunitGroup = document.getElementById('location-subunit-group');
+    const departmentSelect = document.getElementById('location_department');
+    const subunitGroup = document.getElementById('subunit-group');
     const subunitSelect = document.getElementById('location_subunit');
-    const detailGroup = document.getElementById('location-detail-group');
-    const detailSelect = document.getElementById('location_detail');
+    const locationGroup = document.getElementById('location-group');
+    const locationSelect = document.getElementById('location');
 
     const locationData = {
         'SWA': {
-            'LSHR': ['Hall 1', 'Hall 2', 'Hall 3', 'Hall 10', 'SMU', 'CCU', 'Hall 15', 'Sport Department', 'Hall 11', 'Kitchen 1'],
-            'USHR': ['Hall 4', 'Hall 5', 'Hall 6', 'Hall 7', 'Hall 8', 'Hall 9', 'Mamlaka Unit', 'SWA HQ']
+            'USHR': ['Hall 4', 'Hall 5', 'Hall 6', 'Hall 7', 'Hall 8', 'Hall 9', 'SWA HQ', 'Security', 'Halls Finance', 'Halls Procurement', 'Mamlaka Unit', 'Box Hall 20', 'Stella Awinja', 'Hall 13', 'Hall 12'],
+            'LSHR': ['Hall 1', 'Hall 2', 'Hall 3', 'Hall 10', 'Hall 11', 'Sports Depart', 'Kitchen 1', 'CCU']
         },
         'UHS': {
-            '': ['Staff clinic', 'Student clinic', 'Account', 'Laboratory', 'ICEC', 'SickBay', 'Theatre', 'Gender Desk', 'CMO']
+            '': ['CMO', 'Students Clinic', 'Staff Clinic', 'Laboratory', 'ICEC', 'Sickbay', 'Gender Desk', 'Theatre', 'Accounts', 'Procurement']
         },
         'Confucius': {
-            '': ['Block A', 'Block B', 'Block C', 'Auditorium', 'Library', 'Server Room']
+            '': ['Block A', 'Block B', 'Block C', 'Security', 'Auditorium', 'CCTV Room', 'Server Room']
         }
     };
 
-    function toggleMISSubcategory() {
-        var selectedOption = categorySelect.options[categorySelect.selectedIndex];
-        if (selectedOption && selectedOption.text === 'University MIS System Issue') {
-            misSubcategoryContainer.style.display = '';
-        } else {
-            misSubcategoryContainer.style.display = 'none';
-            misSubcategorySelect.value = '';
-        }
-    }
-
     function updateSubunitOptions() {
-        const unit = unitSelect.value;
+        const department = departmentSelect.value;
         subunitSelect.innerHTML = '<option value="">Select Subunit</option>';
-        detailSelect.innerHTML = '<option value="">Select Location</option>';
-        if (unit === 'SWA') {
+        locationSelect.innerHTML = '<option value="">Select Location</option>';
+        
+        if (department === 'SWA') {
             subunitGroup.style.display = '';
+            locationGroup.style.display = 'none';
             Object.keys(locationData['SWA']).forEach(subunit => {
                 const opt = document.createElement('option');
                 opt.value = subunit;
                 opt.text = subunit;
                 subunitSelect.appendChild(opt);
             });
-            detailGroup.style.display = 'none';
-        } else if (unit === 'UHS' || unit === 'Confucius') {
+        } else if (department === 'UHS' || department === 'Confucius') {
             subunitGroup.style.display = 'none';
-            detailGroup.style.display = '';
-            let details = locationData[unit][''];
-            details.forEach(loc => {
+            locationGroup.style.display = '';
+            let locations = locationData[department][''];
+            locations.forEach(loc => {
                 const opt = document.createElement('option');
                 opt.value = loc;
                 opt.text = loc;
-                detailSelect.appendChild(opt);
+                locationSelect.appendChild(opt);
             });
         } else {
             subunitGroup.style.display = 'none';
-            detailGroup.style.display = 'none';
+            locationGroup.style.display = 'none';
         }
     }
 
-    function updateDetailOptions() {
-        const unit = unitSelect.value;
+    function updateLocationOptions() {
+        const department = departmentSelect.value;
         const subunit = subunitSelect.value;
-        detailSelect.innerHTML = '<option value="">Select Location</option>';
-        if (unit === 'SWA' && subunit) {
-            detailGroup.style.display = '';
-            let details = locationData['SWA'][subunit] || [];
-            details.forEach(loc => {
+        locationSelect.innerHTML = '<option value="">Select Location</option>';
+        
+        if (department === 'SWA' && subunit) {
+            locationGroup.style.display = '';
+            let locations = locationData['SWA'][subunit] || [];
+            locations.forEach(loc => {
                 const opt = document.createElement('option');
                 opt.value = loc;
                 opt.text = loc;
-                detailSelect.appendChild(opt);
+                locationSelect.appendChild(opt);
             });
         } else {
-            detailGroup.style.display = 'none';
+            locationGroup.style.display = 'none';
         }
     }
 
-    categorySelect.addEventListener('change', toggleMISSubcategory);
-    toggleMISSubcategory();
-    unitSelect && unitSelect.addEventListener('change', function() {
+    departmentSelect && departmentSelect.addEventListener('change', function() {
         updateSubunitOptions();
     });
+    
     subunitSelect && subunitSelect.addEventListener('change', function() {
-        updateDetailOptions();
+        updateLocationOptions();
     });
+
     // Initialize on page load
     updateSubunitOptions();
 
@@ -224,6 +214,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const dropArea = document.getElementById('drop-area');
     const fileInput = document.getElementById('attachments');
     const filePreview = document.getElementById('file-preview');
+    
     dropArea.addEventListener('click', () => fileInput.click());
     dropArea.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -240,6 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showFilePreview();
     });
     fileInput.addEventListener('change', showFilePreview);
+    
     function showFilePreview() {
         filePreview.innerHTML = '';
         if (fileInput.files.length > 0) {
@@ -255,6 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
+
 {% block scripts %}
 {{ super() }}
 <script>
@@ -263,9 +256,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const descInput = document.getElementById('description-autocomplete');
     const descList = document.getElementById('desc-autocomplete-list');
     let descHistory = [];
+    
     fetch("/api/ticket_descriptions")
         .then(res => res.json())
         .then(data => { descHistory = data; });
+    
     descInput.addEventListener('input', function() {
         const val = this.value.toLowerCase();
         descList.innerHTML = '';
@@ -283,6 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
             descList.appendChild(item);
         });
     });
+    
     document.addEventListener('click', function(e) {
         if (!descList.contains(e.target) && e.target !== descInput) {
             descList.innerHTML = '';

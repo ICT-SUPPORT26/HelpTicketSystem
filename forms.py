@@ -44,18 +44,16 @@ class RegistrationForm(FlaskForm):
             raise ValidationError('Email already registered. Please use a different email address.')
 
 class TicketForm(FlaskForm):
-    location = StringField('Location', validators=[DataRequired(), Length(max=200)])
-    location_unit = SelectField('Unit', choices=[
-        ('', 'Select Unit'),
+    location = SelectField('Location', choices=[('', 'Select Location')], validate_choice=False)
+    location_department = SelectField('Department', choices=[
+        ('', 'Select Department'),
         ('SWA', 'SWA'),
         ('UHS', 'UHS'),
         ('Confucius', 'Confucius')
     ])
     location_subunit = SelectField('Subunit', choices=[('', 'Select Subunit')], validate_choice=False)
-    location_detail = SelectField('Location Detail', choices=[('', 'Select Location')], validate_choice=False)
     description = TextAreaField('Description', validators=[DataRequired()])
     category_id = SelectField('Category', coerce=int, validators=[Optional()])
-    mis_subcategory = StringField('MIS Subcategory')
     priority = SelectField('Priority', choices=[
         ('low', 'Low'),
         ('medium', 'Medium'),
