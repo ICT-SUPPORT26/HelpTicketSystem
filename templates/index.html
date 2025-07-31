@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,7 +16,7 @@
         
         .welcome-panel {
             flex: 1;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
+            background: linear-gradient(135deg, #667eea 0%, #4b7bd6 25%, #b5dad0 50%, #49f1d5 75%, #4facfe 100%);
             background-size: 400% 400%;
             animation: gradientShift 15s ease infinite;
             display: flex;
@@ -29,7 +28,7 @@
         
         .welcome-content {
             text-align: center;
-            color: white;
+            color: rgb(3, 3, 3);
             z-index: 2;
             max-width: 500px;
             padding: 2rem;
@@ -43,7 +42,7 @@
         }
         
         .welcome-description {
-            font-size: 1.1rem;
+            font-size: 1.5rem;
             line-height: 1.6;
             margin-bottom: 2rem;
             opacity: 0.95;
@@ -192,12 +191,12 @@
         .btn-login-split {
             width: 100%;
             height: 48px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%, #57a4ec 100%);
             border: none;
             border-radius: 12px;
-            color: white;
-            font-weight: 600;
-            font-size: 1rem;
+            color: rgb(22, 22, 22);
+            font-weight: bold;
+            font-size: 1.2rem;
             cursor: pointer;
             transition: all 0.3s ease;
             margin-bottom: 1rem;
@@ -542,6 +541,7 @@
         <div class="login-panel">
             <div class="login-form-container">
                 <div class="login-header">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="ICT Helpdesk Logo" class="img-fluid mb-3" style="max-width: 150px;">
                     <h2 class="login-title">USER LOGIN</h2>
                     <p class="login-subtitle">Sign in to access your account</p>
                 </div>

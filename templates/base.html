@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}ICT Helpdesk System{% endblock %}</title>
     <!-- Google Fonts: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -71,25 +72,59 @@
                 </ul>
                 <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
                     {% if current_user.is_authenticated %}
-                    {% if current_user.role in ['admin', 'intern'] %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link position-relative" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <!-- Notifications -->
+                    <li class="nav-item dropdown me-3">
+                        <a class="nav-link position-relative" href="#" id="notificationsDropdown" role="button" 
+                           data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-bell"></i>
-                            <span id="notification-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+                            <span id="notification-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none;">
+                                0
+                            </span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end notifications-dropdown" aria-labelledby="notificationsDropdown" style="min-width: 320px; max-width: 400px; max-height: 400px; overflow-y: auto;">
-                            <li class="dropdown-header">Notifications</li>
-                            <li id="notifications-list">
-                                <span class="dropdown-item text-muted small">No new notifications</span>
+                        <ul class="dropdown-menu dropdown-menu-end notification-dropdown" aria-labelledby="notificationsDropdown" style="width: 350px; max-height: 400px; overflow-y: auto;">
+                            <li class="dropdown-header d-flex justify-content-between align-items-center">
+                                <span>Notifications</span>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-link text-muted p-0" id="mark-all-read" style="font-size: 0.8rem;">
+                                        Mark all read
+                                    </button>
+                                    <button class="btn btn-sm btn-link text-danger p-0" id="clear-all-notifications" style="font-size: 0.8rem;">
+                                        Clear all
+                                    </button>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <div id="notifications-list">
+                                <li class="text-center py-3">
+                                    <span class="text-muted">Loading notifications...</span>
+                                </li>
+                            </div>
+                            <li><hr class="dropdown-divider"></li>
+                            <li class="text-center">
+                                <a href="{{ url_for('notification_settings') }}" class="dropdown-item text-center">
+                                    <i class="fas fa-cog me-1"></i>Notification Settings
+                                </a>
                             </li>
                         </ul>
                     </li>
-                    {% endif %}
-                    <li class="nav-item">
-                        <span class="nav-link">{{ current_user.full_name }}</span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle me-1"></i>{{ current_user.full_name }}
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('dashboard') }}"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
+                            {% if current_user.role == 'admin' %}
+                            <li><a class="dropdown-item" href="{{ url_for('user_management') }}"><i class="fas fa-users-cog me-2"></i>User Management</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('reports') }}"><i class="fas fa-chart-bar me-2"></i>Reports</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('analytics_dashboard') }}"><i class="fas fa-analytics me-2"></i>Analytics</a></li>
+                            {% endif %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('change_password') }}">
+                                        <i class="fas fa-key me-2"></i>Change Password
+                                    </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                        </ul>
                     </li>
                     {% endif %}
                 </ul>
@@ -113,6 +148,29 @@
     </footer>
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Main JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+    <script>
+        // Initialize notification manager only if user is authenticated
+        document.addEventListener('DOMContentLoaded', function() {
+            {% if current_user.is_authenticated %}
+            try {
+                window.notificationManager = new NotificationManager();
+                console.log('Notification manager initialized successfully');
+            } catch (error) {
+                console.error('Error initializing notification manager:', error);
+            }
+            {% endif %}
+
+            // Add global error handler
+            window.addEventListener('error', function(e) {
+                console.error('Global JavaScript error:', e.error);
+            });
+
+            // Log page load
+            console.log('Page loaded successfully:', window.location.pathname);
+        });
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

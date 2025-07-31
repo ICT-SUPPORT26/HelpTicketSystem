@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Notification Settings{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">Notification Settings</h1>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bell me-2"></i>Manage Your Notifications
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {{ form.hidden_tag() }}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-desktop me-1"></i>In-App Notifications
+                                </h6>
+
+                                <div class="form-check mb-2">
+                                    {{ form.new_ticket_app(class="form-check-input", checked=settings.new_ticket_app) }}
+                                    {{ form.new_ticket_app.label(class="form-check-label") }}
+                                </div>
+
+                                <div class="form-check mb-2">
+                                    {{ form.ticket_updated_app(class="form-check-input", checked=settings.ticket_updated_app) }}
+                                    {{ form.ticket_updated_app.label(class="form-check-label") }}
+                                </div>
+
+                                <div class="form-check mb-2">
+                                    {{ form.new_comment_app(class="form-check-input", checked=settings.new_comment_app) }}
+                                    {{ form.new_comment_app.label(class="form-check-label") }}
+                                </div>
+
+                                <div class="form-check mb-2">
+                                    {{ form.ticket_closed_app(class="form-check-input", checked=settings.ticket_closed_app) }}
+                                    {{ form.ticket_closed_app.label(class="form-check-label") }}
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    {{ form.ticket_overdue_app(class="form-check-input", checked=settings.ticket_overdue_app) }}
+                                    {{ form.ticket_overdue_app.label(class="form-check-label") }}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-envelope me-1"></i>Email Notifications
+                                </h6>
+
+                                <div class="form-check mb-2">
+                                    {{ form.new_ticket_email(class="form-check-input", checked=settings.new_ticket_email) }}
+                                    {{ form.new_ticket_email.label(class="form-check-label") }}
+                                </div>
+
+                                <div class="form-check mb-2">
+                                    {{ form.ticket_updated_email(class="form-check-input", checked=settings.ticket_updated_email) }}
+                                    {{ form.ticket_updated_email.label(class="form-check-label") }}
+                                </div>
+
+                                <div class="form-check mb-2">
+                                    {{ form.new_comment_email(class="form-check-input", checked=settings.new_comment_email) }}
+                                    {{ form.new_comment_email.label(class="form-check-label") }}
+                                </div>
+
+                                <div class="form-check mb-2">
+                                    {{ form.ticket_closed_email(class="form-check-input", checked=settings.ticket_closed_email) }}
+                                    {{ form.ticket_closed_email.label(class="form-check-label") }}
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    {{ form.ticket_overdue_email(class="form-check-input", checked=settings.ticket_overdue_email) }}
+                                    {{ form.ticket_overdue_email.label(class="form-check-label") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-moon me-1"></i>Do Not Disturb
+                                </h6>
+
+                                <div class="form-check mb-3">
+                                    {{ form.do_not_disturb(class="form-check-input", checked=settings.do_not_disturb) }}
+                                    {{ form.do_not_disturb.label(class="form-check-label") }}
+                                    <small class="form-text text-muted d-block">
+                                        When enabled, you won't receive notifications during the specified hours
+                                    </small>
+                                </div>
+
+                                <div class="row" id="dnd-times" style="{{ 'display: none;' if not settings.do_not_disturb }}">
+                                    <div class="col-md-3">
+                                        <label for="dnd_start_time" class="form-label">Start Time</label>
+                                        {{ form.dnd_start_time(class="form-control", value=settings.dnd_start_time.strftime('%H:%M') if settings.dnd_start_time) }}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="dnd_end_time" class="form-label">End Time</label>
+                                        {{ form.dnd_end_time(class="form-control", value=settings.dnd_end_time.strftime('%H:%M') if settings.dnd_end_time) }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="d-flex justify-content-between">
+                            {{ form.submit(class="btn btn-primary") }}
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('do_not_disturb').addEventListener('change', function() {
+    const dndTimes = document.getElementById('dnd-times');
+    if (this.checked) {
+        dndTimes.style.display = 'block';
+    } else {
+        dndTimes.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

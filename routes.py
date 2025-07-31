@@ -9,11 +9,17 @@ from flask_mail import Message
 import pytz
 import uuid
 from sqlalchemy.orm import joinedload
+from flask_caching import Cache
 
 from app import app, db, mail
-from models import User, Ticket, Comment, Attachment, Category
-from forms import LoginForm, RegistrationForm, TicketForm, CommentForm, TicketUpdateForm, UserManagementForm, CategoryForm, AdminUserForm
+from models import User, Ticket, Comment, Attachment, Category, Notification, NotificationSettings
+from forms import LoginForm, RegistrationForm, TicketForm, CommentForm, TicketUpdateForm, UserManagementForm, CategoryForm, AdminUserForm, NotificationSettingsForm, PasswordChangeForm, UserStatusForm
 from utils import send_notification_email, get_dashboard_stats
+from notification_utils import NotificationManager
+from background_tasks import generate_report_data
+
+# Initialize cache
+cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache'})
 
 @app.route('/')
 def index():
@@ -65,6 +71,23 @@ def login():
             # Payroll login for users/interns
             user = User.query.filter_by(username=username).first()
             if user and check_password_hash(user.password_hash, password):
+                if not user.is_active:
+                    flash('Your account has been deactivated. Please contact administrator.', 'danger')
+                    return redirect(url_for('index'))
+                
+                # Check if account is verified
+                if not user.is_verified:
+                    flash('Please verify your email address before logging in.', 'warning')
+                    return redirect(url_for('index'))
+                
+                # Check approval status for interns only
+                if user.role == 'intern' and not user.is_approved:
+                    print(f"DEBUG: Intern {user.username} is not approved. is_approved={user.is_approved}, is_active={user.is_active}, role={user.role}")
+                    flash('Your intern account is pending admin approval. Please wait for activation.', 'warning')
+                    return redirect(url_for('index'))
+                
+                print(f"DEBUG: User {user.username} login SUCCESS - role={user.role}, is_approved={user.is_approved}, is_active={user.is_active}")
+                
                 login_user(user, remember=remember_me)
                 next_page = request.args.get('next')
                 if not next_page or not next_page.startswith('/'):
@@ -113,25 +136,68 @@ def register():
 
         # Generate verification token
         token = str(uuid.uuid4())
+        
+        # Auto-approve users, require admin approval only for interns
+        is_approved = form.role.data in ['admin', 'user']
+        is_active = form.role.data in ['admin', 'user']
+        
         user = User(
             username=form.username.data,
             email=form.email.data,
             full_name=form.full_name.data,
             password_hash=generate_password_hash(form.password.data),
             role=form.role.data,
+            phone_number=getattr(form, 'phone_number', None) and form.phone_number.data,
             is_verified=False,
+            is_approved=is_approved,
+            is_active=is_active,
             verification_token=token
         )
-        db.session.add(user)
+        try:
+            db.session.add(user)
+            db.session.flush()  # Get the user ID
+        except Exception as e:
+            db.session.rollback()
+            print(f"Database error during user creation: {e}")
+            flash('Registration failed. Please try again.', 'danger')
+            return render_template('register.html', form=form)
+        
+        # Send verification email (only if email is configured)
+        try:
+            if app.config.get('MAIL_USERNAME') and app.config.get('MAIL_PASSWORD'):
+                verify_url = url_for('verify_email', token=token, _external=True)
+                msg = Message('Verify Your Email - ICT Helpdesk', recipients=[user.email])
+                msg.body = f"Hello {user.full_name},\n\nPlease verify your email by clicking the link below:\n{verify_url}\n\nAfter verification, your account will need admin approval before you can access the system.\n\nIf you did not register, please ignore this email."
+                mail.send(msg)
+                email_sent = True
+            else:
+                email_sent = False
+                # For development/testing, mark user as verified automatically
+                user.is_verified = True
+                user.verification_token = None
+        except Exception as e:
+            print(f"Email sending failed: {e}")
+            email_sent = False
+            # Mark user as verified automatically if email fails
+            user.is_verified = True
+            user.verification_token = None
+        
         db.session.commit()
-
-        # Send verification email
-        verify_url = url_for('verify_email', token=token, _external=True)
-        msg = Message('Verify Your Email - ICT Helpdesk', recipients=[user.email])
-        msg.body = f"Hello {user.full_name},\n\nPlease verify your email by clicking the link below:\n{verify_url}\n\nIf you did not register, please ignore this email."
-        mail.send(msg)
-
-        flash('Registration successful! Please check your email to verify your account.', 'info')
+        
+        # Notify all admins about new intern registration (users are auto-approved)
+        if form.role.data == 'intern':
+            NotificationManager.notify_new_user_registration(user)
+        
+        if form.role.data == 'user':
+            if email_sent:
+                flash('Registration successful! Please check your email to verify your account, then you can login.', 'info')
+            else:
+                flash('Registration successful! Your account has been automatically verified. You can now login.', 'info')
+        else:  # intern
+            if email_sent:
+                flash('Registration successful! Please check your email to verify your account. Admin approval will be required before you can access the system.', 'info')
+            else:
+                flash('Registration successful! Your account has been automatically verified for testing. Admin approval will be required before you can access the system.', 'info')
         return redirect(url_for('login'))
     return render_template('register.html', form=form)
 
@@ -163,9 +229,29 @@ def admin_dashboard():
     user_stats = db.session.query(
         User.role,
         func.count(User.id).label('count')
-    ).group_by(User.role).all()
+    ).filter(User.role != None).group_by(User.role).all()
 
-    return render_template('admin_dashboard.html', stats=stats, recent_tickets=recent_tickets, user_stats=user_stats)
+    # Get pending intern approvals count
+    pending_interns_count = User.query.filter_by(
+        is_approved=False,
+        is_verified=True,
+        role='intern'
+    ).count()
+
+    # Get categories for dashboard display
+    categories = Category.query.order_by(Category.name).all()
+    
+    # Import CategoryForm for the modal
+    from forms import CategoryForm
+    category_form = CategoryForm()
+
+    return render_template('admin_dashboard.html', 
+                         stats=stats, 
+                         recent_tickets=recent_tickets, 
+                         user_stats=user_stats,
+                         pending_interns_count=pending_interns_count,
+                         categories=categories,
+                         category_form=category_form)
 
 @app.route('/tickets')
 @login_required
@@ -292,9 +378,10 @@ def new_ticket():
 
         db.session.commit()
 
-        # Send notification email (now for all assignees)
-        if ticket.assignees:
-            send_notification_email(ticket, 'new_ticket')
+        # Send notifications using the new system
+        print(f"DEBUG: About to send notifications for new ticket {ticket.id}")
+        NotificationManager.notify_new_ticket(ticket)
+        print(f"DEBUG: Notifications sent for ticket {ticket.id}")
 
         flash('Ticket created successfully', 'success')
         return redirect(url_for('ticket_detail', id=ticket.id))
@@ -354,8 +441,8 @@ def add_comment(id):
         ticket.updated_at = datetime.utcnow()
         db.session.commit()
 
-        # Send notification email
-        send_notification_email(ticket, 'new_comment')
+        # Send notifications using the new system
+        NotificationManager.notify_new_comment(ticket, current_user)
 
         flash('Comment added successfully', 'success')
 
@@ -434,9 +521,21 @@ def update_ticket(id):
 
         # Set closed_at timestamp and closed_by if ticket is closed
         if form.status.data == 'closed' and old_status != 'closed':
+            # Store current assignees before any modifications
+            current_assignees = list(ticket.assignees)
+            
             ticket.closed_at = datetime.utcnow()
             ticket.closed_by_id = current_user.id
-            # Preserve assignees when closing ticket - do not clear them
+            
+            # CRITICAL: Ensure assignees are preserved when closing
+            # This is essential for maintaining proper tracking and reports
+            if current_user.role == 'admin' and form.assignees.data is not None:
+                # If admin is reassigning during closure, use new assignees
+                ticket.assignees = [User.query.get(uid) for uid in (form.assignees.data or []) if User.query.get(uid)]
+            else:
+                # Otherwise preserve existing assignees
+                ticket.assignees = current_assignees
+                
         elif form.status.data != 'closed':
             ticket.closed_at = None
             ticket.closed_by_id = None
@@ -482,8 +581,8 @@ def update_ticket(id):
 
         db.session.commit()
 
-        # Send notification email
-        send_notification_email(ticket, 'ticket_updated')
+        # Send notifications using the new system
+        NotificationManager.notify_ticket_updated(ticket, current_user)
 
         flash('Ticket updated successfully', 'success')
 
@@ -531,11 +630,16 @@ def close_ticket(id):
         flash('Ticket must be resolved before it can be closed', 'danger')
         return redirect(url_for('ticket_detail', id=id))
 
+    # Store assignees before closing to ensure they're preserved
+    original_assignees = list(ticket.assignees)
+    
     ticket.status = 'closed'
     ticket.closed_at = datetime.utcnow()
     ticket.closed_by_id = current_user.id
     ticket.updated_at = datetime.utcnow()
-    # Preserve assignees when closing - do not modify assignment
+    
+    # Ensure assignees are preserved - this is critical for reports and tracking
+    ticket.assignees = original_assignees
 
     # Log the closure
     from models import TicketHistory
@@ -550,6 +654,9 @@ def close_ticket(id):
     db.session.add(history)
     db.session.commit()
 
+    # Send notifications using the new system
+    NotificationManager.notify_ticket_closed(ticket, current_user)
+
     flash('Ticket closed successfully', 'success')
     return redirect(url_for('ticket_detail', id=id))
 
@@ -560,19 +667,44 @@ def reports_pdf():
         abort(403)
 
     # Use same logic as main reports route for consistency
-    days = request.args.get('days', 30, type=int)
-    start_date = datetime.utcnow() - timedelta(days=days)
+    date_range = request.args.get('date_range', 'monthly')
     end_date = datetime.utcnow()
-
-    # Custom date range
+    
+    # Custom date range takes precedence
     custom_start = request.args.get('start_date')
     custom_end = request.args.get('end_date')
     if custom_start and custom_end:
         try:
             start_date = datetime.strptime(custom_start, '%Y-%m-%d')
-            end_date = datetime.strptime(custom_end, '%Y-%m-%d')
+            end_date = datetime.strptime(custom_end, '%Y-%m-%d') + timedelta(days=1)
+            days = (end_date - start_date).days
         except ValueError:
-            pass
+            if date_range == 'daily':
+                start_date = end_date - timedelta(days=1)
+                days = 1
+            elif date_range == 'weekly':
+                start_date = end_date - timedelta(days=7)
+                days = 7
+            elif date_range == 'monthly':
+                start_date = end_date - timedelta(days=30)
+                days = 30
+            else:
+                start_date = end_date - timedelta(days=365)
+                days = 365
+    else:
+        # Calculate start date based on range
+        if date_range == 'daily':
+            start_date = end_date - timedelta(days=1)
+            days = 1
+        elif date_range == 'weekly':
+            start_date = end_date - timedelta(days=7)
+            days = 7
+        elif date_range == 'monthly':
+            start_date = end_date - timedelta(days=30)
+            days = 30
+        else:
+            start_date = end_date - timedelta(days=365)
+            days = 365
 
     # Filter parameters
     status_filter = request.args.get('status', '')
@@ -601,7 +733,7 @@ def reports_pdf():
     total_tickets = len(tickets)
     closed_tickets = len([t for t in tickets if t.status == 'closed'])
 
-    # Staff performance
+    # Staff performance - count all assigned tickets regardless of status
     staff_performance = db.session.query(
         User.full_name,
         User.role,
@@ -662,21 +794,40 @@ def reports():
     if current_user.role != 'admin':
         abort(403)
 
-    # Enhanced filters
-    days = request.args.get('days', 30, type=int)
-    start_date = datetime.utcnow() - timedelta(days=days)
+    # Enhanced filters with new date range options
+    date_range = request.args.get('date_range', 'all')  # Default to all for broader range
     end_date = datetime.utcnow()
-
-    # Custom date range
+    
+    # Custom date range takes precedence
     custom_start = request.args.get('start_date')
     custom_end = request.args.get('end_date')
     if custom_start and custom_end:
         try:
             start_date = datetime.strptime(custom_start, '%Y-%m-%d')
-            end_date = datetime.strptime(custom_end, '%Y-%m-%d')
+            end_date = datetime.strptime(custom_end, '%Y-%m-%d') + timedelta(days=1)  # Include end date
             days = (end_date - start_date).days
         except ValueError:
-            pass
+            # Fall back to all data if custom dates are invalid
+            start_date = datetime(2020, 1, 1)  # Very early date to capture all tickets
+            days = (end_date - start_date).days
+    else:
+        # Calculate start date based on range
+        if date_range == 'daily':
+            start_date = end_date - timedelta(days=1)
+            days = 1
+        elif date_range == 'weekly':
+            start_date = end_date - timedelta(days=7)
+            days = 7
+        elif date_range == 'monthly':
+            start_date = end_date - timedelta(days=30)
+            days = 30
+        elif date_range == 'yearly':
+            start_date = end_date - timedelta(days=365)
+            days = 365
+        else:  # 'all' or any unrecognized value
+            # Use a very early date to capture all tickets
+            start_date = datetime(2020, 1, 1)
+            days = (end_date - start_date).days
 
     # Filter parameters
     created_by = request.args.get('created_by', type=int)
@@ -694,17 +845,12 @@ def reports():
     departments = ['SWA', 'UHS', 'Confucius']
     subunits = {
         'SWA': ['LSHR', 'USHR'],
-        'UHS': ['Staff clinic', 'Student clinic'],
-        'Confucius': ['Block A', 'Block B', 'Block C']
+        'UHS': ['Staff clinic', 'Student clinic', 'Account', 'Laboratory', 'ICEC', 'SickBay', 'Theatre', 'Gender Desk', 'CMO'],
+        'Confucius': ['Block A', 'Block B', 'Block C', 'Auditorium', 'Library', 'Server Room']
     }
     locations = {
-        'LSHR': ['Location 1', 'Location 2'],
-        'USHR': ['Location 3', 'Location 4'],
-        'Staff clinic': ['Location 5', 'Location 6'],
-        'Student clinic': ['Location 7', 'Location 8'],
-        'Block A': ['Location 9', 'Location 10'],
-        'Block B': ['Location 11', 'Location 12'],
-        'Block C': ['Location 13', 'Location 14']
+        'LSHR': ['Hall 1', 'Hall 2', 'Hall 3', 'Hall 10', 'SMU', 'CCU', 'Hall 15', 'Sport Department', 'Hall 11', 'Kitchen 1'],
+        'USHR': ['Hall 4', 'Hall 5', 'Hall 6', 'Hall 7', 'Hall 8', 'Hall 9', 'Mamlaka Unit', 'SWA HQ']
     }
 
     # Build ticket query with enhanced filters
@@ -731,6 +877,12 @@ def reports():
         ticket_query = ticket_query.filter(Ticket.location.contains(department_filter))
 
     tickets = ticket_query.all()
+    
+    # Debug information
+    print(f"DEBUG: Reports query - Date range: {start_date} to {end_date}")
+    print(f"DEBUG: Found {len(tickets)} tickets")
+    if tickets:
+        print(f"DEBUG: Sample ticket dates: {[t.created_at for t in tickets[:3]]}")
 
     # Enhanced statistics
     total_tickets = len(tickets)
@@ -765,19 +917,15 @@ def reports():
         department_stats[dept] = department_stats.get(dept, 0) + 1
     department_stats = [{'department': k, 'count': v} for k, v in department_stats.items()]
 
-    # Staff performance
+    # Staff performance - count all tickets assigned to staff, regardless of final status
     staff_performance = db.session.query(
         User.full_name,
         User.role,
-        func.count(Ticket.id).label('tickets_handled'),
-        func.avg(
-            func.julianday(Ticket.closed_at) - func.julianday(Ticket.created_at)
-        ).label('avg_resolution_days')
+        func.count(Ticket.id).label('tickets_handled')
     ).join(User.assigned_tickets)\
      .filter(
          Ticket.created_at >= start_date,
          Ticket.created_at <= end_date,
-         Ticket.status.in_(['resolved', 'closed']),
          User.role.in_(['admin', 'intern'])
      )
 
@@ -785,6 +933,14 @@ def reports():
         staff_performance = staff_performance.filter(User.id == attended_by)
 
     staff_performance = staff_performance.group_by(User.id, User.full_name, User.role).all()
+    
+    print(f"DEBUG: Staff performance query returned {len(staff_performance)} results")
+    print(f"DEBUG: Date range used: {start_date} to {end_date}")
+    print(f"DEBUG: Total tickets found: {len(tickets)}")
+    
+    # If no staff performance but tickets exist, it means tickets are unassigned
+    if len(tickets) > 0 and len(staff_performance) == 0:
+        print("DEBUG: Tickets exist but no staff performance - likely unassigned tickets")
 
     # Response and resolution times
     tickets_with_times = [t for t in tickets if t.status in ['resolved', 'closed'] and t.closed_at]
@@ -808,11 +964,20 @@ def reports():
             if datetime.utcnow() > ticket.due_date:
                 overdue_tickets.append(ticket)
 
-    # Priority distribution
-    priority_stats = {}
+    # Priority distribution - ensure we have the stats in the expected format
+    priority_dict = {}
     for t in tickets:
-        priority_stats[t.priority] = priority_stats.get(t.priority, 0) + 1
-    priority_stats = [{'priority': k, 'count': v} for k, v in priority_stats.items()]
+        priority_dict[t.priority] = priority_dict.get(t.priority, 0) + 1
+    
+    # Create priority_stats in both formats for template compatibility
+    priority_stats = [{'priority': k, 'count': v} for k, v in priority_dict.items()]
+    # Also create a direct dict for easy access in template
+    priority_counts = {
+        'urgent': priority_dict.get('urgent', 0),
+        'high': priority_dict.get('high', 0),
+        'medium': priority_dict.get('medium', 0),
+        'low': priority_dict.get('low', 0)
+    }
 
     # Status distribution
     status_stats = [
@@ -845,6 +1010,7 @@ def reports():
                          department_stats=department_stats,
                          staff_performance=staff_performance,
                          priority_stats=priority_stats,
+                         priority_counts=priority_counts,
                          status_stats=status_stats,
                          avg_resolution_time=avg_resolution_time,
                          resolution_times=resolution_times,
@@ -854,6 +1020,7 @@ def reports():
                          start_date=start_date.strftime('%Y-%m-%d'),
                          end_date=end_date.strftime('%Y-%m-%d'),
                          datetime=datetime,
+                         now=datetime.utcnow,
                          tickets=tickets,
                          all_users=all_users,
                          all_categories=all_categories,
@@ -867,6 +1034,16 @@ def reports():
                          location_filter=location_filter,
                          subunit_filter=subunit_filter)
 
+@app.route('/user-stats')
+@login_required
+@cache.cached(timeout=300, key_prefix='user_stats')
+def get_user_stats():
+    user_stats = db.session.query(
+        User.role,
+        func.count(User.id).label('count')
+    ).filter(User.role != None).group_by(User.role).all()
+    return jsonify(user_stats)
+
 @app.route('/admin/users')
 @login_required
 def user_management():
@@ -876,11 +1053,10 @@ def user_management():
     users = User.query.all()
     form = UserManagementForm()
     admin_user_form = AdminUserForm()
-    category_form = CategoryForm()
-    categories = Category.query.all()
+    status_form = UserStatusForm()
 
     return render_template('user_management.html', users=users, form=form, 
-                         admin_user_form=admin_user_form, category_form=category_form, categories=categories)
+                         admin_user_form=admin_user_form, status_form=status_form)
 
 @app.route('/admin/users/update_password', methods=['POST'])
 @login_required
@@ -983,6 +1159,16 @@ def delete_user(user_id):
     for comment in comments:
         comment.author_id = None
 
+    # Delete notifications for this user (notifications cannot exist without a user)
+    Notification.query.filter_by(user_id=user_id).delete()
+
+    # Delete notification settings for this user
+    NotificationSettings.query.filter_by(user_id=user_id).delete()
+
+    # Delete ticket history entries by this user
+    from models import TicketHistory
+    TicketHistory.query.filter_by(user_id=user_id).delete()
+
     # Delete the user
     db.session.delete(user)
     db.session.commit()
@@ -1057,47 +1243,158 @@ def api_ticket_descriptions():
 @app.route('/api/notifications')
 @login_required
 def api_notifications():
-    # Only for IT staff (interns, admins)
-    if current_user.role not in ['admin', 'intern']:
-        return jsonify([])
-
-    from datetime import datetime, timedelta
-
-    # Get tickets created in the last 24 hours or recently updated
-    recent_cutoff = datetime.utcnow() - timedelta(hours=24)
-
-    query = Ticket.query
-    if current_user.role == 'intern':
-        # For interns: show tickets assigned to them or newly created tickets
-        query = query.filter(
-            db.or_(
-                Ticket.assignees.any(User.id == current_user.id),
-                Ticket.created_at >= recent_cutoff
-            )
-        )
-    # Admin can see all tickets
-
-    recent_tickets = query.order_by(Ticket.created_at.desc()).limit(15).all()
-    notifications = []
-
-    for t in recent_tickets:
-        # Determine notification type
-        is_new = (datetime.utcnow() - t.created_at).total_seconds() < 3600  # Less than 1 hour old
-        notification_type = 'new' if is_new else 'updated'
-
-        notifications.append({
-            'id': t.id,
-            'type': notification_type,
-            'title': f"{'New Ticket Created' if is_new else 'Ticket Updated'}",
-            'description': t.description[:60] + ('...' if len(t.description) > 60 else ''),
-            'status': t.status,
-            'priority': t.priority,
-            'created_at': t.created_at.strftime('%Y-%m-%d %H:%M'),
-            'updated_at': t.updated_at.strftime('%Y-%m-%d %H:%M'),
-            'created_by': t.creator.full_name if t.creator else 'Unknown',
-            'link': url_for('ticket_detail', id=t.id)
+    """Get notifications for current user"""
+    print(f"DEBUG: Loading notifications for user {current_user.id}")
+    notifications = NotificationManager.get_user_notifications(current_user.id, limit=20)
+    print(f"DEBUG: Found {len(notifications)} notifications")
+    
+    notification_data = []
+    for notification in notifications:
+        notification_data.append({
+            'id': notification.id,
+            'type': notification.type,
+            'title': notification.title,
+            'message': notification.message,
+            'is_read': notification.is_read,
+            'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M'),
+            'ticket_id': notification.ticket_id,
+            'link': url_for('ticket_detail', id=notification.ticket_id) if notification.ticket_id else None
         })
-    return jsonify(notifications)
+    
+    return jsonify(notification_data)
+
+@app.route('/api/notifications/unread_count')
+@login_required
+def api_unread_count():
+    """Get count of unread notifications"""
+    count = NotificationManager.get_unread_count(current_user.id)
+    print(f"DEBUG: Unread count for user {current_user.id}: {count}")
+    return jsonify({'count': count})
+
+@app.route('/api/notifications/<int:notification_id>/mark_read', methods=['POST'])
+@login_required
+def api_mark_notification_read(notification_id):
+    """Mark a notification as read"""
+    try:
+        success = NotificationManager.mark_as_read(notification_id, current_user.id)
+        return jsonify({'success': success})
+    except Exception as e:
+        print(f"Error marking notification as read: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/notifications/mark_all_read', methods=['POST'])
+@login_required
+def api_mark_all_read():
+    """Mark all notifications as read"""
+    try:
+        count = NotificationManager.mark_all_as_read(current_user.id)
+        return jsonify({'success': True, 'marked_count': count})
+    except Exception as e:
+        print(f"Error marking all notifications as read: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/notifications/recent')
+@login_required
+def api_recent_notifications():
+    """Get recent notifications since timestamp for real-time updates"""
+    since_timestamp = request.args.get('since', type=int)
+    if since_timestamp:
+        since_datetime = datetime.fromtimestamp(since_timestamp / 1000)
+        notifications = Notification.query.filter(
+            Notification.user_id == current_user.id,
+            Notification.created_at > since_datetime
+        ).order_by(Notification.created_at.desc()).limit(10).all()
+    else:
+        notifications = []
+    
+    notification_data = []
+    for notification in notifications:
+        notification_data.append({
+            'id': notification.id,
+            'type': notification.type,
+            'title': notification.title,
+            'message': notification.message,
+            'is_read': notification.is_read,
+            'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M'),
+            'ticket_id': notification.ticket_id,
+            'link': url_for('ticket_detail', id=notification.ticket_id) if notification.ticket_id else None
+        })
+    
+    return jsonify(notification_data)
+
+@app.route('/api/notifications/clear_all', methods=['POST'])
+@login_required
+def api_clear_all_notifications():
+    """Clear all notifications for current user"""
+    try:
+        count = NotificationManager.clear_all_notifications(current_user.id)
+        return jsonify({'success': True, 'cleared_count': count})
+    except Exception as e:
+        print(f"Error clearing all notifications: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/debug/tickets')
+@login_required
+def debug_tickets():
+    """Debug route to inspect ticket data"""
+    if current_user.role != 'admin':
+        abort(403)
+    
+    tickets = Ticket.query.order_by(Ticket.created_at.desc()).limit(10).all()
+    debug_data = []
+    
+    for ticket in tickets:
+        debug_data.append({
+            'id': ticket.id,
+            'location': ticket.location,
+            'status': ticket.status,
+            'created_at': ticket.created_at.isoformat() if ticket.created_at else None,
+            'updated_at': ticket.updated_at.isoformat() if ticket.updated_at else None,
+            'assignees': [a.full_name for a in ticket.assignees] if ticket.assignees else []
+        })
+    
+    total_count = Ticket.query.count()
+    now = datetime.utcnow()
+    week_ago = now - timedelta(days=7)
+    recent_count = Ticket.query.filter(Ticket.created_at >= week_ago).count()
+    
+    return jsonify({
+        'tickets': debug_data,
+        'total_count': total_count,
+        'recent_count': recent_count,
+        'current_time': now.isoformat(),
+        'week_ago': week_ago.isoformat()
+    })
+
+@app.route('/api/debug/notifications')
+@login_required
+def debug_notifications():
+    """Debug route to inspect notification data"""
+    if current_user.role != 'admin':
+        abort(403)
+    
+    notifications = Notification.query.filter_by(user_id=current_user.id).all()
+    debug_data = []
+    
+    for notif in notifications:
+        debug_data.append({
+            'id': notif.id,
+            'user_id': notif.user_id,
+            'type': notif.type,
+            'title': notif.title,
+            'is_read': notif.is_read,
+            'created_at': notif.created_at.isoformat(),
+            'read_at': notif.read_at.isoformat() if notif.read_at else None
+        })
+    
+    unread_count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
+    total_count = Notification.query.filter_by(user_id=current_user.id).count()
+    
+    return jsonify({
+        'notifications': debug_data,
+        'unread_count': unread_count,
+        'total_count': total_count
+    })
 
 
 @app.route('/analytics')
@@ -1146,3 +1443,241 @@ def analytics_dashboard():
                          resolved_this_month=resolved_this_month,
                          sla_percentage=sla_percentage,
                          top_categories=top_categories)
+
+@app.route('/notifications/settings', methods=['GET', 'POST'])
+@login_required
+def notification_settings():
+    """Manage notification settings for current user"""
+    settings = NotificationSettings.query.filter_by(user_id=current_user.id).first()
+    if not settings:
+        settings = NotificationSettings(user_id=current_user.id)
+        db.session.add(settings)
+        db.session.commit()
+    
+    form = NotificationSettingsForm(obj=settings)
+    
+    if form.validate_on_submit():
+        # Update settings from form
+        form.populate_obj(settings)
+        
+        # Handle time fields specially - set to None if empty
+        if form.dnd_start_time.data and form.dnd_start_time.data.strip():
+            try:
+                settings.dnd_start_time = datetime.strptime(form.dnd_start_time.data, '%H:%M').time()
+            except ValueError:
+                settings.dnd_start_time = None
+        else:
+            settings.dnd_start_time = None
+            
+        if form.dnd_end_time.data and form.dnd_end_time.data.strip():
+            try:
+                settings.dnd_end_time = datetime.strptime(form.dnd_end_time.data, '%H:%M').time()
+            except ValueError:
+                settings.dnd_end_time = None
+        else:
+            settings.dnd_end_time = None
+        
+        db.session.commit()
+        flash('Notification settings updated successfully', 'success')
+        return redirect(url_for('notification_settings'))
+    
+    return render_template('notification_settings.html', settings=settings, form=form)
+
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """Allow users to change their own password"""
+    form = PasswordChangeForm()
+    
+    if form.validate_on_submit():
+        # Verify current password
+        if not check_password_hash(current_user.password_hash, form.current_password.data):
+            flash('Current password is incorrect', 'danger')
+            return render_template('change_password.html', form=form)
+        
+        # Update password
+        current_user.password_hash = generate_password_hash(form.new_password.data)
+        db.session.commit()
+        
+        flash('Password changed successfully', 'success')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('change_password.html', form=form)
+
+@app.route('/admin/users/<int:user_id>/toggle_status', methods=['POST'])
+@login_required
+def toggle_user_status(user_id):
+    """Admin route to activate/deactivate user accounts"""
+    if current_user.role != 'admin':
+        abort(403)
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Prevent admin from deactivating themselves
+    if user.id == current_user.id:
+        flash('You cannot deactivate your own account', 'danger')
+        return redirect(url_for('user_management'))
+    
+    # Toggle status
+    user.is_active = not user.is_active
+    status_text = 'activated' if user.is_active else 'deactivated'
+    
+    # If deactivating, remove from all assigned tickets
+    if not user.is_active:
+        tickets_assigned = Ticket.query.join(Ticket.assignees).filter(User.id == user_id).all()
+        for ticket in tickets_assigned:
+            ticket.assignees = [u for u in ticket.assignees if u.id != user_id]
+            if ticket.status == 'in_progress' and not ticket.assignees:
+                ticket.status = 'open'
+    
+    db.session.commit()
+    flash(f'User {user.full_name} has been {status_text}', 'success')
+    return redirect(url_for('user_management'))
+
+
+
+@app.route('/admin/pending_users')
+@login_required
+def pending_users():
+    """Show pending user approvals"""
+    if current_user.role != 'admin':
+        abort(403)
+    
+    # Get pending interns
+    pending_interns = User.query.filter_by(
+        is_approved=False,
+        is_verified=True,
+        role='intern'
+    ).order_by(User.created_at.desc()).all()
+    
+    # Get approved interns for reference
+    approved_interns = User.query.filter_by(
+        is_approved=True,
+        role='intern'
+    ).order_by(User.created_at.desc()).limit(10).all()
+    
+    # Import csrf for token generation
+    from flask_wtf.csrf import generate_csrf
+    
+    return render_template('pending_users.html', 
+                         pending_interns=pending_interns, 
+                         approved_interns=approved_interns,
+                         csrf_token=generate_csrf)
+
+@app.route('/admin/intern_management')
+@login_required
+def intern_management():
+    """Dedicated intern management interface"""
+    if current_user.role != 'admin':
+        abort(403)
+    
+    # Get all interns with different statuses
+    pending_interns = User.query.filter_by(
+        is_approved=False,
+        is_verified=True,
+        role='intern'
+    ).order_by(User.created_at.desc()).all()
+    
+    active_interns = User.query.filter_by(
+        is_approved=True,
+        is_active=True,
+        role='intern'
+    ).order_by(User.created_at.desc()).all()
+    
+    inactive_interns = User.query.filter_by(
+        is_approved=True,
+        is_active=False,
+        role='intern'
+    ).order_by(User.created_at.desc()).all()
+    
+    # Get intern performance statistics
+    intern_stats = []
+    for intern in active_interns:
+        active_tickets = Ticket.query.join(Ticket.assignees).filter(
+            User.id == intern.id,
+            Ticket.status.in_(['open', 'in_progress'])
+        ).count()
+        
+        completed_tickets = Ticket.query.join(Ticket.assignees).filter(
+            User.id == intern.id,
+            Ticket.status.in_(['resolved', 'closed'])
+        ).count()
+        
+        intern_stats.append({
+            'intern': intern,
+            'active_tickets': active_tickets,
+            'completed_tickets': completed_tickets
+        })
+    
+    # Import csrf for token generation
+    from flask_wtf.csrf import generate_csrf
+    
+    return render_template('intern_management.html', 
+                         pending_interns=pending_interns,
+                         active_interns=active_interns,
+                         inactive_interns=inactive_interns,
+                         intern_stats=intern_stats,
+                         csrf_token=generate_csrf)
+
+@app.route('/admin/staff_management')
+@login_required
+def staff_management():
+    """Dedicated staff/user management interface"""
+    if current_user.role != 'admin':
+        abort(403)
+    
+    # Get all staff (non-intern users)
+    staff_users = User.query.filter(User.role.in_(['user', 'admin'])).order_by(User.created_at.desc()).all()
+    
+    # Separate active and inactive staff
+    active_staff = [u for u in staff_users if u.is_active]
+    inactive_staff = [u for u in staff_users if not u.is_active]
+    
+    return render_template('staff_management.html', 
+                         active_staff=active_staff,
+                         inactive_staff=inactive_staff)
+
+@app.route('/admin/users/<int:user_id>/approve', methods=['POST'])
+@login_required
+def approve_user_account(user_id):
+    """Approve a pending user account"""
+    if current_user.role != 'admin':
+        abort(403)
+    
+    user = User.query.get_or_404(user_id)
+    
+    if user.is_approved:
+        flash(f'{user.full_name} is already approved', 'info')
+        return redirect(url_for('pending_users'))
+    
+    print(f"DEBUG: Approving user {user.username} - Current role: {user.role}")
+    
+    # Approve the user - preserve the original role
+    user.is_approved = True
+    user.is_active = True
+    user.approved_by_id = current_user.id
+    user.approved_at = datetime.utcnow()
+    # DO NOT change the role - keep it as 'intern'
+    
+    db.session.commit()
+    
+    print(f"DEBUG: After approval - User {user.username} role: {user.role}, is_approved: {user.is_approved}, is_active: {user.is_active}")
+    
+    # Send notification to the approved user
+    try:
+        NotificationManager.notify_user_approved(user, current_user)
+    except:
+        pass  # Don't fail if notification fails
+    
+    flash(f'{user.full_name} (Intern) has been approved and can now login', 'success')
+    return redirect(url_for('pending_users'))
+
+@app.route('/api/current-timestamp', methods=['GET'])
+def get_current_timestamp():
+    return jsonify({"timestamp": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')})
+
+@app.route('/api/reports-data', methods=['GET'])
+@login_required
+def get_reports_data():
+    task = generate_report_data.apply_async()
+    return jsonify({"task_id": task.id})

@@ -1,13 +1,22 @@
-
 {% extends "base.html" %}
 
 {% block title %}Admin Dashboard - ICT Helpdesk{% endblock %}
 
 {% block content %}
+<!-- Pending Approvals Alert -->
+{% if pending_interns_count > 0 %}
+<div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>{{ pending_interns_count }}</strong> intern{{ 's' if pending_interns_count != 1 else '' }} waiting for approval.
+    <a href="{{ url_for('pending_users') }}" class="alert-link">Review now</a>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
 <!-- Enhanced Header with Gradient Background -->
 <div class="admin-header mb-4">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
+    <div class="d-flex justify-content-between align-items-center w-100">
+        <div class="admin-header-content">
             <h2 class="admin-title">
                 <i class="fas fa-crown me-2 text-warning"></i>
                 Admin Control Center
@@ -15,21 +24,62 @@
             <p class="admin-subtitle mb-0">System overview and management tools</p>
         </div>
         <div class="admin-actions">
-            <div class="btn-group me-2" role="group">
-                <a href="{{ url_for('reports') }}" class="btn btn-outline-info">
-                    <i class="fas fa-chart-line me-2"></i>Reports
-                </a>
-                <a href="{{ url_for('user_management') }}" class="btn btn-outline-warning">
-                    <i class="fas fa-users-cog me-2"></i>Users
-                </a>
-            </div>
-            <div class="btn-group" role="group">
-                <a href="{{ url_for('tickets_list') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-list-ul me-2"></i>All Tickets
-                </a>
-                <a href="{{ url_for('new_ticket') }}" class="btn btn-primary btn-pulse">
-                    <i class="fas fa-plus me-2"></i>New Ticket
-                </a>
+            <div class="dropdown">
+                <button class="btn btn-primary dropdown-toggle admin-toggle-btn" type="button" id="adminActionsDropdown" 
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-cog me-1"></i>Quick Actions
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end admin-actions-dropdown" aria-labelledby="adminActionsDropdown">
+                    <li><h6 class="dropdown-header"><i class="fas fa-chart-bar me-2"></i>Reports & Analytics</h6></li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('reports') }}">
+                            <i class="fas fa-chart-line me-2 text-info"></i>View Reports
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    
+                    <li><h6 class="dropdown-header"><i class="fas fa-users me-2"></i>User Management</h6></li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('user_management') }}">
+                            <i class="fas fa-users-cog me-2 text-warning"></i>All Users
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('intern_management') }}">
+                            <i class="fas fa-user-graduate me-2 text-primary"></i>Intern Management
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('staff_management') }}">
+                            <i class="fas fa-user-tie me-2 text-success"></i>Staff Management
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    
+                    <li><h6 class="dropdown-header"><i class="fas fa-ticket-alt me-2"></i>Ticket Management</h6></li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('tickets_list') }}">
+                            <i class="fas fa-list-ul me-2 text-secondary"></i>All Tickets
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('tickets_list', status='open') }}">
+                            <i class="fas fa-clock me-2 text-warning"></i>Open Tickets
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('tickets_list', priority='urgent') }}">
+                            <i class="fas fa-exclamation-triangle me-2 text-danger"></i>Urgent Tickets
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    
+                    <li>
+                        <a class="dropdown-item highlight-item" href="{{ url_for('new_ticket') }}">
+                            <i class="fas fa-plus-circle me-2 text-primary"></i>Create New Ticket
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
     </div>
@@ -87,7 +137,7 @@
             </div>
         </a>
     </div>
-    
+
     <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
         <a href="{{ url_for('tickets_list', status='open') }}" class="text-decoration-none">
             <div class="stats-card card-warning clickable-card" data-aos="fade-up" data-aos-delay="200">
@@ -106,7 +156,7 @@
             </div>
         </a>
     </div>
-    
+
     <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
         <a href="{{ url_for('tickets_list', status='in_progress') }}" class="text-decoration-none">
             <div class="stats-card card-info clickable-card" data-aos="fade-up" data-aos-delay="300">
@@ -125,7 +175,7 @@
             </div>
         </a>
     </div>
-    
+
     <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
         <a href="{{ url_for('tickets_list', status='closed') }}" class="text-decoration-none">
             <div class="stats-card card-success clickable-card" data-aos="fade-up" data-aos-delay="400">
@@ -135,7 +185,7 @@
                     </div>
                     <div class="stats-content">
                         <h3 class="stats-number" data-target="{{ stats.closed_tickets }}">0</h3>
-                        <p class="stats-label">Resolved</p>
+                        <p class="stats-label">Closed</p>
                         <div class="stats-progress">
                             <div class="progress-bar" style="width: {{ (stats.closed_tickets / stats.total_tickets * 100) if stats.total_tickets > 0 else 0 }}%"></div>
                         </div>
@@ -180,7 +230,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-4">
         <div class="card priority-alerts">
             <div class="card-header">
@@ -212,9 +262,9 @@
     </div>
 </div>
 
-<!-- Team Performance Dashboard -->
+<!-- Dashboard Management Sections -->
 <div class="row">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card team-performance">
             <div class="card-header">
                 <h5 class="mb-0">
@@ -244,8 +294,44 @@
             </div>
         </div>
     </div>
-    
-    <div class="col-md-6">
+
+    <div class="col-md-4">
+        <div class="card category-management">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-tags me-2 text-warning"></i>Categories
+                </h5>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                    <i class="fas fa-plus me-1"></i>Add
+                </button>
+            </div>
+            <div class="card-body">
+                {% if categories %}
+                    <div class="category-list" style="max-height: 300px; overflow-y: auto;">
+                        {% for category in categories %}
+                        <div class="category-item d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
+                            <div>
+                                <strong class="category-name">{{ category.name }}</strong>
+                                {% if category.description %}
+                                    <br><small class="text-muted category-desc">{{ category.description[:50] }}{% if category.description|length > 50 %}...{% endif %}</small>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted">{{ category.tickets.count() }} tickets</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-folder-open fa-2x mb-2 opacity-50"></i>
+                        <p class="mb-0">No categories created yet.</p>
+                        <small>Click "Add" to create your first category.</small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
         <div class="card system-health">
             <div class="card-header">
                 <h5 class="mb-0">
@@ -285,19 +371,65 @@
     </div>
 </div>
 
+<!-- Add Category Modal -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-tags me-2"></i>Add New Category
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_category') }}">
+                {{ category_form.hidden_tag() }}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        {{ category_form.name.label(class="form-label") }}
+                        {{ category_form.name(class="form-control", placeholder="e.g., Hardware Issues") }}
+                        <div class="form-text">Enter a descriptive name for the category</div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ category_form.description.label(class="form-label") }}
+                        {{ category_form.description(class="form-control", placeholder="Brief description of this category", rows="3") }}
+                        <div class="form-text">Optional: Provide additional details about this category</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    {{ category_form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="btn-group" role="group">
+                        <a href="{{ url_for('intern_management') }}" class="btn btn-outline-warning">
+                            <i class="fas fa-user-graduate me-2"></i>Intern Management
+                        </a>
+                        <a href="{{ url_for('staff_management') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-user-tie me-2"></i>Staff Management
+                        </a>
+                        <a href="{{ url_for('user_management') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-users me-2"></i>All Users
+                        </a>
+                    </div>
+
 <style>
 /* Admin Dashboard Custom Styles */
 .admin-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #b1dbee 0%, #6074e6 100%);
     color: white;
     padding: 2rem;
+    height: 50px;
     border-radius: 1rem;
     margin-bottom: 2rem;
 }
 
 .admin-title {
     font-size: 2rem;
-    font-weight: bold;
+    font-weight: 400;
     margin-bottom: 0.5rem;
 }
 
@@ -604,11 +736,11 @@
     .stats-card .card-body {
         padding: 1.25rem;
     }
-    
+
     .stats-number {
         font-size: 1.75rem;
     }
-    
+
     .stats-icon {
         font-size: 2rem;
     }
@@ -619,7 +751,7 @@
         flex-direction: column;
         gap: 0.5rem;
     }
-    
+
     .btn-group {
         width: 100%;
     }
@@ -629,36 +761,37 @@
     .admin-header {
         padding: 1.5rem;
     }
-    
+
     .admin-title {
         font-size: 1.5rem;
     }
-    
+
     .admin-actions {
         margin-top: 1rem;
+        width: 100%;
     }
-    
+
     .btn-group {
         display: flex;
         flex-wrap: wrap;
         gap: 0.5rem;
     }
-    
+
     .stats-card .card-body {
         padding: 1rem;
         text-align: center;
     }
-    
+
     .stats-icon {
         font-size: 1.75rem;
         margin-right: 0;
         margin-bottom: 0.5rem;
     }
-    
+
     .stats-number {
         font-size: 1.5rem;
     }
-    
+
     .stats-label {
         font-size: 0.8rem;
     }
@@ -670,22 +803,22 @@
         text-align: center;
         padding: 0.75rem;
     }
-    
+
     .stats-icon {
         display: block;
         margin: 0 auto 0.5rem;
         font-size: 1.5rem;
     }
-    
+
     .stats-number {
         font-size: 1.25rem;
     }
-    
+
     .admin-header .d-flex {
         flex-direction: column;
         text-align: center;
     }
-    
+
     .admin-actions {
         margin-top: 1rem;
         width: 100%;
