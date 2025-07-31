@@ -340,7 +340,6 @@
                     <table id="ticket-summary-table" class="table table-hover table-striped">
                         <thead class="table-dark">
                             <tr>
-                                <th style="width: 80px;">Ticket ID</th>
                                 <th style="width: 120px;">Date Created</th>
                                 <th style="width: 150px;">Department/Location</th>
                                 <th style="width: 120px;">Category</th>
@@ -355,9 +354,6 @@
                         <tbody>
                             {% for ticket in tickets %}
                             <tr class="clickable-row" onclick="window.location.href='{{ url_for('ticket_detail', id=ticket.id) }}'">
-                                <td>
-                                    <strong>#{{ ticket.id }}</strong>
-                                </td>
                                 <td>
                                     <small>{{ ticket.created_at.strftime('%Y-%m-%d') }}<br>{{ ticket.created_at.strftime('%H:%M') }}</small>
                                 </td>
@@ -861,7 +857,7 @@ function getTableHTML(table) {
     // Clone the table
     const tableClone = table.cloneNode(true);
 
-    // Remove action columns and buttons from the cloned table
+    // Remove action columns from the cloned table (now the last column since ticket ID is hidden)
     const actionCells = tableClone.querySelectorAll('th:last-child, td:last-child');
     actionCells.forEach(cell => cell.remove());
 
