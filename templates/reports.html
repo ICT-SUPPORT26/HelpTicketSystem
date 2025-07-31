@@ -321,7 +321,7 @@
                     <button onclick="exportTableToCSV('ticket-summary-table', 'ticket_summary_report.csv')" class="btn btn-sm btn-outline-success">
                         <i class="fas fa-download me-1"></i>Export CSV
                     </button>
-                    <button onclick="window.print()" class="btn btn-sm btn-outline-primary">
+                    <button onclick="printTicketSummary()" class="btn btn-sm btn-outline-primary">
                         <i class="fas fa-print me-1"></i>Print
                     </button>
                 </div>
@@ -720,260 +720,203 @@
 </style>
 
 <script>
-// CSV Export Function
+function printTicketSummary() {
+    // Get the ticket summary table
+    const table = document.getElementById('ticket-summary-table');
+    const tableContainer = table.closest('.table-responsive');
+
+    if (!table) {
+        alert('Table not found for printing');
+        return;
+        }
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+
+    // Build the print content
+    const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Ticket Summary Report - ${new Date().toLocaleDateString()}</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    color: #333;
+                    font-size: 12px;
+                }
+
+                .print-header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    border-bottom: 2px solid #000;
+                    padding-bottom: 20px;
+                }
+
+                .print-header h1 {
+                    margin: 0;
+                    color: #2c3e50;
+                    font-size: 24px;
+                }
+
+                .print-header p {
+                    margin: 5px 0;
+                    color: #666;
+                }
+
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                    font-size: 10px;
+                }
+
+                th, td {
+                    border: 1px solid #000;
+                    padding: 8px 4px;
+                    text-align: left;
+                    vertical-align: top;
+                }
+
+                th {
+                    background-color: #f8f9fa;
+                    font-weight: bold;
+                    color: #000;
+                }
+
+                tr:nth-child(even) {
+                    background-color: #f9f9f9;
+                }
+
+                .badge {
+                    display: inline-block;
+                    padding: 2px 6px;
+                    font-size: 9px;
+                    font-weight: bold;
+                    border-radius: 3px;
+                    color: #000;
+                    background-color: #e9ecef;
+                    border: 1px solid #000;
+                }
+
+                .text-truncate {
+                    max-width: 150px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+
+                .print-footer {
+                    margin-top: 30px;
+                    text-align: center;
+                    font-size: 10px;
+                    color: #666;
+                    border-top: 1px solid #ddd;
+                    padding-top: 15px;
+                }
+
+                @media print {
+                    body { margin: 0; }
+                    .print-header, .print-footer { break-inside: avoid; }
+                    table { break-inside: auto; }
+                    tr { break-inside: avoid; break-after: auto; }
+                    th { break-after: avoid; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="print-header">
+                <h1>ICT Helpdesk - Ticket Summary Report</h1>
+                <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+                <p><strong>Period:</strong> {{ start_date }} to {{ end_date }}</p>
+                <p><strong>Total Tickets:</strong> {{ tickets|length }}</p>
+            </div>
+
+            <div class="table-container">
+                ${getTableHTML(table)}
+            </div>
+
+            <div class="print-footer">
+                <p>ICT Helpdesk System - Ticket Summary Report</p>
+                <p>This is a system-generated report containing {{ tickets|length }} tickets for the specified period</p>
+            </div>
+        </body>
+        </html>
+    `;
+
+    // Write content to print window
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+
+    // Wait for content to load then print
+    printWindow.onload = function() {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+    };
+}
+
+function getTableHTML(table) {
+    // Clone the table
+    const tableClone = table.cloneNode(true);
+
+    // Remove action columns and buttons from the cloned table
+    const actionCells = tableClone.querySelectorAll('th:last-child, td:last-child');
+    actionCells.forEach(cell => cell.remove());
+
+    // Clean up any onclick attributes
+    const rows = tableClone.querySelectorAll('tr');
+    rows.forEach(row => {
+        row.removeAttribute('onclick');
+        row.classList.remove('clickable-row');
+    });
+
+    // Convert badges to plain text for better printing
+    const badges = tableClone.querySelectorAll('.badge');
+    badges.forEach(badge => {
+        badge.style.backgroundColor = '#e9ecef';
+        badge.style.color = '#000';
+        badge.style.border = '1px solid #000';
+    });
+
+    return tableClone.outerHTML;
+}
+
+// CSV Export function (keeping existing functionality)
 function exportTableToCSV(tableId, filename) {
     const table = document.getElementById(tableId);
+    if (!table) return;
+
+    let csv = [];
     const rows = table.querySelectorAll('tr');
-    let csvContent = '';
 
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('th, td');
-        const rowData = [];
-        cells.forEach(cell => {
-            // Clean the cell content for CSV
-            let cellText = cell.innerText.trim();
-            // Remove action buttons from export
-            if (!cell.querySelector('.btn-group-vertical')) {
-                cellText = cellText.replace(/"/g, '""'); // Escape quotes
-                rowData.push('"' + cellText + '"');
-            }
-        });
-        if (rowData.length > 0) {
-            csvContent += rowData.join(',') + '\n';
+    for (let i = 0; i < rows.length; i++) {
+        const row = [];
+        const cols = rows[i].querySelectorAll('td, th');
+
+        for (let j = 0; j < cols.length - 1; j++) { // Exclude last column (actions)
+            let cellText = cols[j].innerText.trim();
+            // Clean up text and escape quotes
+            cellText = cellText.replace(/"/g, '""');
+            row.push('"' + cellText + '"');
         }
-    });
+        csv.push(row.join(','));
+    }
 
-    // Create download link
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    // Download CSV
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
 }
-
-// Disable notification manager on reports page to prevent errors
-window.NotificationManager = {
-    init: function() { console.log('NotificationManager disabled on reports page'); },
-    startPolling: function() { },
-    stopPolling: function() { },
-    updateUnreadCount: function() { }
-};
-
-// Override notification functions to prevent errors
-window.updateNotificationCount = function(count) {
-    // Do nothing on reports page
-};
-
-// Prevent any notification-related errors
-window.addEventListener('error', function(e) {
-    if (e.message && (e.message.includes('notification') || e.message.includes('NotificationManager'))) {
-        console.log('Notification error suppressed on reports page');
-        e.preventDefault();
-        return false;
-    }
-});
-
-// Add click animations and interactions
-document.addEventListener('DOMContentLoaded', function() {
-    // Add ripple effect to clickable cards
-    const clickableCards = document.querySelectorAll('.clickable-card');
-
-    clickableCards.forEach(card => {
-        card.addEventListener('click', function(e) {
-            // Create ripple effect
-            const ripple = document.createElement('span');
-            const rect = this.getBoundingClientRect();
-            const size = Math.max(rect.width, rect.height);
-            const x = e.clientX - rect.left - size / 2;
-            const y = e.clientY - rect.top - size / 2;
-
-            ripple.style.width = ripple.style.height = size + 'px';
-            ripple.style.left = x + 'px';
-            ripple.style.top = y + 'px';
-            ripple.classList.add('ripple');
-
-            this.appendChild(ripple);
-
-            setTimeout(() => {
-                ripple.remove();
-            }, 600);
-        });
-    });
-
-    // Animate numbers on page load
-    const statsNumbers = document.querySelectorAll('.stats-number');
-    statsNumbers.forEach(numberElement => {
-        const finalNumber = parseInt(numberElement.textContent);
-        if (finalNumber > 0) {
-            animateNumber(numberElement, finalNumber);
-        }
-    });
-
-    // Timestamp update function
-    const timestampElement = document.getElementById('timestamp');
-
-    function updateTimestamp() {
-        fetch('/api/current-timestamp')
-            .then(response => response.json())
-            .then(data => {
-                timestampElement.textContent = data.timestamp;
-            })
-            .catch(error => console.error('Error fetching timestamp:', error));
-    }
-
-    // Real-time stats update function
-    function updateReportsStats() {
-        // Get current filter parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const params = new URLSearchParams();
-        
-        // Add all current filters to the API request
-        for (const [key, value] of urlParams.entries()) {
-            params.append(key, value);
-        }
-
-        fetch('/api/reports-stats?' + params.toString())
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    console.error('Error in stats data:', data.error);
-                    return;
-                }
-
-                // Update all stats cards with smooth animation
-                updateStatCard('total-tickets', data.total_tickets);
-                updateStatCard('open-tickets', data.open_tickets);
-                updateStatCard('in-progress-tickets', data.in_progress_tickets);
-                updateStatCard('resolved-tickets', data.resolved_tickets);
-                updateStatCard('closed-tickets', data.closed_tickets);
-                updateStatCard('overdue-tickets', data.overdue_tickets);
-
-                // Update priority distribution
-                updatePriorityStats(data.priority_counts, data.total_tickets);
-
-                // Update average resolution time
-                if (data.avg_resolution_time !== null) {
-                    document.getElementById('avg-resolution-time').textContent = data.avg_resolution_time.toFixed(1) + ' hours';
-                } else {
-                    document.getElementById('avg-resolution-time').textContent = 'N/A';
-                }
-
-                // Show last update time
-                const lastUpdate = new Date(data.timestamp).toLocaleTimeString();
-                const statusElement = document.getElementById('last-update');
-                if (statusElement) {
-                    statusElement.textContent = 'Last updated: ' + lastUpdate;
-                    statusElement.classList.add('text-success');
-                    setTimeout(() => statusElement.classList.remove('text-success'), 1000);
-                }
-
-                console.log('Reports stats updated at:', lastUpdate);
-            })
-            .catch(error => {
-                console.error('Error fetching reports stats:', error);
-                const statusElement = document.getElementById('last-update');
-                if (statusElement) {
-                    statusElement.textContent = 'Update failed';
-                    statusElement.classList.add('text-danger');
-                    setTimeout(() => statusElement.classList.remove('text-danger'), 3000);
-                }
-            });
-    }
-
-    function updateStatCard(elementId, newValue) {
-        const elements = document.querySelectorAll(`[data-stat="${elementId}"], .stats-number`);
-        elements.forEach(element => {
-            if (element.textContent !== newValue.toString()) {
-                // Add update animation
-                element.style.transform = 'scale(1.1)';
-                element.style.color = '#28a745';
-                element.textContent = newValue;
-                
-                setTimeout(() => {
-                    element.style.transform = 'scale(1)';
-                    element.style.color = '';
-                }, 300);
-            }
-        });
-    }
-
-    function updatePriorityStats(priorityCounts, totalTickets) {
-        const priorities = ['urgent', 'high', 'medium', 'low'];
-        
-        priorities.forEach(priority => {
-            const countElement = document.querySelector(`[data-priority="${priority}"] .fw-bold`);
-            const progressElement = document.querySelector(`[data-priority="${priority}"] .progress-bar`);
-            
-            if (countElement && progressElement) {
-                const count = priorityCounts[priority] || 0;
-                const percentage = totalTickets > 0 ? (count / totalTickets * 100) : 0;
-                
-                countElement.textContent = count;
-                progressElement.style.width = percentage + '%';
-            }
-        });
-    }
-
-    // Update timestamp every 2 seconds
-    setInterval(updateTimestamp, 2000);
-    updateTimestamp(); // Initial call
-
-    // Update reports stats every 3 seconds for real-time updates
-    setInterval(updateReportsStats, 3000);
-    updateReportsStats(); // Initial call
-
-    // Add visual indicator for real-time updates
-    const header = document.querySelector('h2');
-    if (header) {
-        const indicator = document.createElement('span');
-        indicator.id = 'last-update';
-        indicator.className = 'badge bg-secondary ms-2';
-        indicator.textContent = 'Updating...';
-        header.appendChild(indicator);
-    }
-});
-
-function animateNumber(element, target) {
-    let current = 0;
-    const increment = target / 30;
-    const timer = setInterval(() => {
-        current += increment;
-        if (current >= target) {
-            current = target;
-            clearInterval(timer);
-        }
-        element.textContent = Math.floor(current);
-    }, 50);
-}
-
-// Add CSS for ripple effect
-const style = document.createElement('style');
-style.textContent = `
-    .clickable-card {
-        position: relative;
-        overflow: hidden;
-    }
-
-    .ripple {
-        position: absolute;
-        border-radius: 50%;
-        background-color: rgba(255, 255, 255, 0.3);
-        transform: scale(0);
-        animation: ripple-animation 0.6s linear;
-        pointer-events: none;
-    }
-
-    @keyframes ripple-animation {
-        to {
-            transform: scale(4);
-            opacity: 0;
-        }
-    }
-`;
-document.head.appendChild(style);
 </script>
 {% endblock %}
