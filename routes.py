@@ -1687,3 +1687,64 @@ def get_current_timestamp():
 def get_reports_data():
     task = generate_report_data.apply_async()
     return jsonify({"task_id": task.id})
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    from forms import ForgotPasswordForm
+    form = ForgotPasswordForm()
+    
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user:
+            # Generate a password reset token (simple implementation)
+            import uuid
+            reset_token = str(uuid.uuid4())
+            user.verification_token = reset_token  # Reuse this field for password reset
+            db.session.commit()
+            
+            # Send password reset email (if email is configured)
+            try:
+                if app.config.get('MAIL_USERNAME') and app.config.get('MAIL_PASSWORD'):
+                    reset_url = url_for('reset_password', token=reset_token, _external=True)
+                    msg = Message('Password Reset - ICT Helpdesk', recipients=[user.email])
+                    msg.body = f"Hello {user.full_name},\n\nYou requested a password reset. Click the link below to reset your password:\n{reset_url}\n\nIf you did not request this, please ignore this email."
+                    mail.send(msg)
+                    flash('Password reset instructions have been sent to your email address.', 'info')
+                else:
+                    flash('Password reset is not available. Please contact the administrator.', 'warning')
+            except Exception as e:
+                print(f"Email sending failed: {e}")
+                flash('Password reset is not available. Please contact the administrator.', 'warning')
+        else:
+            # Don't reveal if user exists or not for security
+            flash('If a user with that payroll number exists, password reset instructions have been sent.', 'info')
+        
+        return redirect(url_for('index'))
+    
+    return render_template('forgot_password.html', form=form)
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    user = User.query.filter_by(verification_token=token).first_or_404()
+    
+    if request.method == 'POST':
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not new_password or len(new_password) < 6:
+            flash('Password must be at least 6 characters long.', 'danger')
+            return render_template('reset_password.html', token=token)
+        
+        if new_password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return render_template('reset_password.html', token=token)
+        
+        # Update password
+        user.password_hash = generate_password_hash(new_password)
+        user.verification_token = None  # Clear the reset token
+        db.session.commit()
+        
+        flash('Your password has been updated successfully. You can now login.', 'success')
+        return redirect(url_for('index'))
+    
+    return render_template('reset_password.html', token=token)

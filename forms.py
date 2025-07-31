@@ -155,3 +155,11 @@ class NotificationSettingsForm(FlaskForm):
     dnd_start_time = StringField('DND Start Time')
     dnd_end_time = StringField('DND End Time')
     submit = SubmitField('Save Settings')
+
+class ForgotPasswordForm(FlaskForm):
+    username = StringField('Payroll Number', validators=[
+        DataRequired(),
+        Length(min=6, max=6, message='Payroll number must be exactly 6 digits'),
+        Regexp('^[0-9]{6}$', message='Payroll number must be exactly 6 digits')
+    ])
+    submit = SubmitField('Reset Password')
