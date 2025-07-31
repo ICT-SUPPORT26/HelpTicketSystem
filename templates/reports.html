@@ -84,7 +84,7 @@
                         <i class="fas fa-ticket-alt"></i>
                     </div>
                     <div class="stats-content">
-                        <h3 class="stats-number">{{ total_tickets|default(0) }}</h3>
+                        <h3 class="stats-number" data-stat="total-tickets">{{ total_tickets|default(0) }}</h3>
                         <p class="stats-label">Total Tickets</p>
                         <div class="stats-progress">
                             <div class="progress-bar" style="width: 100%"></div>
@@ -103,7 +103,7 @@
                         <i class="fas fa-folder-open"></i>
                     </div>
                     <div class="stats-content">
-                        <h3 class="stats-number">{{ open_tickets|default(0) }}</h3>
+                        <h3 class="stats-number" data-stat="open-tickets">{{ open_tickets|default(0) }}</h3>
                         <p class="stats-label">Open</p>
                         <div class="stats-progress">
                             <div class="progress-bar" style="width: {{ (open_tickets / total_tickets * 100) if total_tickets > 0 else 0 }}%"></div>
@@ -122,7 +122,7 @@
                         <i class="fas fa-cogs"></i>
                     </div>
                     <div class="stats-content">
-                        <h3 class="stats-number">{{ in_progress_tickets|default(0) }}</h3>
+                        <h3 class="stats-number" data-stat="in-progress-tickets">{{ in_progress_tickets|default(0) }}</h3>
                         <p class="stats-label">In Progress</p>
                         <div class="stats-progress">
                             <div class="progress-bar" style="width: {{ (in_progress_tickets / total_tickets * 100) if total_tickets > 0 else 0 }}%"></div>
@@ -141,7 +141,7 @@
                         <i class="fas fa-check-circle"></i>
                     </div>
                     <div class="stats-content">
-                        <h3 class="stats-number">{{ resolved_tickets|default(0) }}</h3>
+                        <h3 class="stats-number" data-stat="resolved-tickets">{{ resolved_tickets|default(0) }}</h3>
                         <p class="stats-label">Resolved</p>
                         <div class="stats-progress">
                             <div class="progress-bar" style="width: {{ (resolved_tickets / total_tickets * 100) if total_tickets > 0 else 0 }}%"></div>
@@ -160,7 +160,7 @@
                         <i class="fas fa-lock"></i>
                     </div>
                     <div class="stats-content">
-                        <h3 class="stats-number">{{ closed_tickets|default(0) }}</h3>
+                        <h3 class="stats-number" data-stat="closed-tickets">{{ closed_tickets|default(0) }}</h3>
                         <p class="stats-label">Closed</p>
                         <div class="stats-progress">
                             <div class="progress-bar" style="width: {{ (closed_tickets / total_tickets * 100) if total_tickets > 0 else 0 }}%"></div>
@@ -179,7 +179,7 @@
                         <i class="fas fa-exclamation-triangle"></i>
                     </div>
                     <div class="stats-content">
-                        <h3 class="stats-number">{{ overdue_tickets|length if overdue_tickets else 0 }}</h3>
+                        <h3 class="stats-number" data-stat="overdue-tickets">{{ overdue_tickets|length if overdue_tickets else 0 }}</h3>
                         <p class="stats-label">Overdue</p>
                         <div class="stats-progress">
                             <div class="progress-bar" style="width: {{ ((overdue_tickets|length if overdue_tickets else 0) / total_tickets * 100) if total_tickets > 0 else 0 }}%"></div>
@@ -196,7 +196,7 @@
     <div class="col-md-12">
         <div class="card bg-light">
             <div class="card-body text-center">
-                <h2 class="text-primary mb-2">
+                <h2 class="text-primary mb-2" id="avg-resolution-time">
                     {% if avg_resolution_time %}
                         {{ "%.1f"|format(avg_resolution_time) }} hours
                     {% else %}
@@ -221,7 +221,7 @@
             </div>
             <div class="card-body">
                 <div class="priority-stats">
-                    <div class="priority-item">
+                    <div class="priority-item" data-priority="urgent">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="badge bg-danger">Urgent</span>
                             <span class="fw-bold">{{ priority_counts.urgent if priority_counts else 0 }}</span>
@@ -230,7 +230,7 @@
                             <div class="progress-bar bg-danger" style="width: {{ (priority_counts.urgent / total_tickets * 100) if total_tickets > 0 and priority_counts else 0 }}%"></div>
                         </div>
                     </div>
-                    <div class="priority-item">
+                    <div class="priority-item" data-priority="high">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="badge bg-warning">High</span>
                             <span class="fw-bold">{{ priority_counts.high if priority_counts else 0 }}</span>
@@ -239,7 +239,7 @@
                             <div class="progress-bar bg-warning" style="width: {{ (priority_counts.high / total_tickets * 100) if total_tickets > 0 and priority_counts else 0 }}%"></div>
                         </div>
                     </div>
-                    <div class="priority-item">
+                    <div class="priority-item" data-priority="medium">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="badge bg-info">Medium</span>
                             <span class="fw-bold">{{ priority_counts.medium if priority_counts else 0 }}</span>
@@ -248,7 +248,7 @@
                             <div class="progress-bar bg-info" style="width: {{ (priority_counts.medium / total_tickets * 100) if total_tickets > 0 and priority_counts else 0 }}%"></div>
                         </div>
                     </div>
-                    <div class="priority-item">
+                    <div class="priority-item" data-priority="low">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="badge bg-success">Low</span>
                             <span class="fw-bold">{{ priority_counts.low if priority_counts else 0 }}</span>
@@ -825,23 +825,116 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => console.error('Error fetching timestamp:', error));
     }
 
+    // Real-time stats update function
+    function updateReportsStats() {
+        // Get current filter parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams();
+        
+        // Add all current filters to the API request
+        for (const [key, value] of urlParams.entries()) {
+            params.append(key, value);
+        }
+
+        fetch('/api/reports-stats?' + params.toString())
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error in stats data:', data.error);
+                    return;
+                }
+
+                // Update all stats cards with smooth animation
+                updateStatCard('total-tickets', data.total_tickets);
+                updateStatCard('open-tickets', data.open_tickets);
+                updateStatCard('in-progress-tickets', data.in_progress_tickets);
+                updateStatCard('resolved-tickets', data.resolved_tickets);
+                updateStatCard('closed-tickets', data.closed_tickets);
+                updateStatCard('overdue-tickets', data.overdue_tickets);
+
+                // Update priority distribution
+                updatePriorityStats(data.priority_counts, data.total_tickets);
+
+                // Update average resolution time
+                if (data.avg_resolution_time !== null) {
+                    document.getElementById('avg-resolution-time').textContent = data.avg_resolution_time.toFixed(1) + ' hours';
+                } else {
+                    document.getElementById('avg-resolution-time').textContent = 'N/A';
+                }
+
+                // Show last update time
+                const lastUpdate = new Date(data.timestamp).toLocaleTimeString();
+                const statusElement = document.getElementById('last-update');
+                if (statusElement) {
+                    statusElement.textContent = 'Last updated: ' + lastUpdate;
+                    statusElement.classList.add('text-success');
+                    setTimeout(() => statusElement.classList.remove('text-success'), 1000);
+                }
+
+                console.log('Reports stats updated at:', lastUpdate);
+            })
+            .catch(error => {
+                console.error('Error fetching reports stats:', error);
+                const statusElement = document.getElementById('last-update');
+                if (statusElement) {
+                    statusElement.textContent = 'Update failed';
+                    statusElement.classList.add('text-danger');
+                    setTimeout(() => statusElement.classList.remove('text-danger'), 3000);
+                }
+            });
+    }
+
+    function updateStatCard(elementId, newValue) {
+        const elements = document.querySelectorAll(`[data-stat="${elementId}"], .stats-number`);
+        elements.forEach(element => {
+            if (element.textContent !== newValue.toString()) {
+                // Add update animation
+                element.style.transform = 'scale(1.1)';
+                element.style.color = '#28a745';
+                element.textContent = newValue;
+                
+                setTimeout(() => {
+                    element.style.transform = 'scale(1)';
+                    element.style.color = '';
+                }, 300);
+            }
+        });
+    }
+
+    function updatePriorityStats(priorityCounts, totalTickets) {
+        const priorities = ['urgent', 'high', 'medium', 'low'];
+        
+        priorities.forEach(priority => {
+            const countElement = document.querySelector(`[data-priority="${priority}"] .fw-bold`);
+            const progressElement = document.querySelector(`[data-priority="${priority}"] .progress-bar`);
+            
+            if (countElement && progressElement) {
+                const count = priorityCounts[priority] || 0;
+                const percentage = totalTickets > 0 ? (count / totalTickets * 100) : 0;
+                
+                countElement.textContent = count;
+                progressElement.style.width = percentage + '%';
+            }
+        });
+    }
+
     // Update timestamp every 2 seconds
     setInterval(updateTimestamp, 2000);
     updateTimestamp(); // Initial call
 
-    function fetchReportData() {
-        fetch('/api/reports-data')
-            .then(response => response.json())
-            .then(data => {
-                // Update the report data dynamically
-                document.getElementById('report-content').innerHTML = data.html;
-            })
-            .catch(error => console.error('Error fetching report data:', error));
-    }
+    // Update reports stats every 3 seconds for real-time updates
+    setInterval(updateReportsStats, 3000);
+    updateReportsStats(); // Initial call
 
-    // Poll for updates every 10 seconds
-    setInterval(fetchReportData, 10000);
-    fetchReportData(); // Initial call
+    // Add visual indicator for real-time updates
+    const header = document.querySelector('h2');
+    if (header) {
+        const indicator = document.createElement('span');
+        indicator.id = 'last-update';
+        indicator.className = 'badge bg-secondary ms-2';
+        indicator.textContent = 'Updating...';
+        header.appendChild(indicator);
+    }
 });
 
 function animateNumber(element, target) {

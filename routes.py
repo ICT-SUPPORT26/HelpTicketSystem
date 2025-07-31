@@ -1042,12 +1042,225 @@ def reports():
 
 @app.route('/user-stats')
 @login_required
-@cache.cached(timeout=300, key_prefix='user_stats')
 def get_user_stats():
     user_stats = db.session.query(
         User.role,
         func.count(User.id).label('count')
     ).filter(User.role != None).group_by(User.role).all()
+
+
+@app.route('/api/dashboard-stats')
+@login_required
+def api_dashboard_stats():
+    """Get real-time dashboard statistics"""
+    if current_user.role != 'admin':
+        abort(403)
+
+    try:
+        stats = get_dashboard_stats(current_user)
+        
+        # Get additional real-time data
+        total_tickets = Ticket.query.count()
+        open_tickets = Ticket.query.filter_by(status='open').count()
+        in_progress_tickets = Ticket.query.filter_by(status='in_progress').count()
+        resolved_tickets = Ticket.query.filter_by(status='resolved').count()
+        closed_tickets = Ticket.query.filter_by(status='closed').count()
+        
+        # Get overdue tickets count
+        overdue_count = 0
+        overdue_tickets = Ticket.query.filter(
+            Ticket.due_date < datetime.utcnow(),
+            ~Ticket.status.in_(['resolved', 'closed'])
+        ).all()
+        overdue_count = len(overdue_tickets)
+
+        # Calculate priority distribution
+        priority_counts = {
+            'urgent': Ticket.query.filter_by(priority='urgent').count(),
+            'high': Ticket.query.filter_by(priority='high').count(),
+            'medium': Ticket.query.filter_by(priority='medium').count(),
+            'low': Ticket.query.filter_by(priority='low').count()
+        }
+
+        # Calculate average resolution time
+        resolved_tickets_with_times = Ticket.query.filter(
+            Ticket.status.in_(['resolved', 'closed']),
+            Ticket.closed_at.isnot(None)
+        ).all()
+        
+        avg_resolution_time = None
+        if resolved_tickets_with_times:
+            total_time = sum([(t.closed_at - t.created_at).total_seconds() for t in resolved_tickets_with_times])
+            avg_resolution_time = total_time / len(resolved_tickets_with_times) / 3600  # in hours
+
+        return jsonify({
+            'total_tickets': total_tickets,
+            'open_tickets': open_tickets,
+            'in_progress_tickets': in_progress_tickets,
+            'resolved_tickets': resolved_tickets,
+            'closed_tickets': closed_tickets,
+            'overdue_tickets': overdue_count,
+            'priority_counts': priority_counts,
+            'avg_resolution_time': avg_resolution_time,
+            'stats': stats,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        print(f"Error getting dashboard stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analytics-stats')
+@login_required
+def api_analytics_stats():
+    """Get real-time analytics statistics"""
+    if current_user.role != 'admin':
+        abort(403)
+
+    try:
+        # Quick stats for last 30 days
+        start_date = datetime.utcnow() - timedelta(days=30)
+
+        # Key performance indicators
+        total_tickets = Ticket.query.filter(Ticket.created_at >= start_date).count()
+        resolved_this_month = Ticket.query.filter(
+            Ticket.created_at >= start_date,
+            Ticket.status.in_(['resolved', 'closed'])
+        ).count()
+
+        # SLA compliance (assuming 2-day target)
+        sla_compliant = 0
+        sla_total = 0
+        for ticket in Ticket.query.filter(
+            Ticket.created_at >= start_date,
+            Ticket.status.in_(['resolved', 'closed']),
+            Ticket.closed_at.isnot(None)
+        ).all():
+            sla_total += 1
+            resolution_time = (ticket.closed_at - ticket.created_at).total_seconds() / 3600
+            if resolution_time <= 48:  # 48 hours = 2 days
+                sla_compliant += 1
+
+        sla_percentage = (sla_compliant / sla_total * 100) if sla_total > 0 else 0
+
+        # Top categories
+        top_categories = db.session.query(
+            Category.name,
+            func.count(Ticket.id).label('count')
+        ).join(Ticket, Category.id == Ticket.category_id)\
+         .filter(Ticket.created_at >= start_date)\
+         .group_by(Category.name)\
+         .order_by(func.count(Ticket.id).desc())\
+         .limit(5).all()
+
+        return jsonify({
+            'total_tickets': total_tickets,
+            'resolved_this_month': resolved_this_month,
+            'sla_percentage': sla_percentage,
+            'top_categories': [{'name': cat.name, 'count': cat.count} for cat in top_categories],
+            'timestamp': datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        print(f"Error getting analytics stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/reports-stats')
+@login_required
+def api_reports_stats():
+    """Get real-time reports statistics with filters"""
+    if current_user.role != 'admin':
+        abort(403)
+
+    try:
+        # Get filter parameters
+        date_range = request.args.get('date_range', 'all')
+        end_date = datetime.utcnow()
+
+        # Custom date range takes precedence
+        custom_start = request.args.get('start_date')
+        custom_end = request.args.get('end_date')
+        if custom_start and custom_end:
+            try:
+                start_date = datetime.strptime(custom_start, '%Y-%m-%d')
+                end_date = datetime.strptime(custom_end, '%Y-%m-%d') + timedelta(days=1)
+            except ValueError:
+                start_date = datetime(2020, 1, 1)
+        else:
+            # Calculate start date based on range
+            if date_range == 'daily':
+                start_date = end_date - timedelta(days=1)
+            elif date_range == 'weekly':
+                start_date = end_date - timedelta(days=7)
+            elif date_range == 'monthly':
+                start_date = end_date - timedelta(days=30)
+            elif date_range == 'yearly':
+                start_date = end_date - timedelta(days=365)
+            else:  # 'all'
+                start_date = datetime(2020, 1, 1)
+
+        # Filter parameters
+        status_filter = request.args.get('status', '')
+        priority_filter = request.args.get('priority', '')
+        category_filter = request.args.get('category', type=int)
+
+        # Build ticket query with filters
+        ticket_query = Ticket.query.filter(
+            Ticket.created_at >= start_date,
+            Ticket.created_at <= end_date
+        )
+
+        if status_filter:
+            ticket_query = ticket_query.filter(Ticket.status == status_filter)
+        if priority_filter:
+            ticket_query = ticket_query.filter(Ticket.priority == priority_filter)
+        if category_filter:
+            ticket_query = ticket_query.filter(Ticket.category_id == category_filter)
+
+        tickets = ticket_query.all()
+
+        # Calculate statistics
+        total_tickets = len(tickets)
+        open_tickets = len([t for t in tickets if t.status == 'open'])
+        in_progress_tickets = len([t for t in tickets if t.status == 'in_progress'])
+        resolved_tickets = len([t for t in tickets if t.status == 'resolved'])
+        closed_tickets = len([t for t in tickets if t.status == 'closed'])
+
+        # Priority counts
+        priority_counts = {
+            'urgent': len([t for t in tickets if t.priority == 'urgent']),
+            'high': len([t for t in tickets if t.priority == 'high']),
+            'medium': len([t for t in tickets if t.priority == 'medium']),
+            'low': len([t for t in tickets if t.priority == 'low'])
+        }
+
+        # Average resolution time
+        tickets_with_times = [t for t in tickets if t.status in ['resolved', 'closed'] and t.closed_at]
+        avg_resolution_time = None
+        if tickets_with_times:
+            total_time = sum([(t.closed_at - t.created_at).total_seconds() for t in tickets_with_times])
+            avg_resolution_time = total_time / len(tickets_with_times) / 3600  # in hours
+
+        # Overdue tickets
+        overdue_count = 0
+        for ticket in tickets:
+            if ticket.due_date and ticket.status not in ['resolved', 'closed']:
+                if datetime.utcnow() > ticket.due_date:
+                    overdue_count += 1
+
+        return jsonify({
+            'total_tickets': total_tickets,
+            'open_tickets': open_tickets,
+            'in_progress_tickets': in_progress_tickets,
+            'resolved_tickets': resolved_tickets,
+            'closed_tickets': closed_tickets,
+            'overdue_tickets': overdue_count,
+            'priority_counts': priority_counts,
+            'avg_resolution_time': avg_resolution_time,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        print(f"Error getting reports stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
     return jsonify(user_stats)
 
 @app.route('/admin/users')
