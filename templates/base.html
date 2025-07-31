@@ -71,13 +71,13 @@
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                    {% if current_user.is_authenticated %}
-                    <!-- Theme Toggle -->
+                    <!-- Theme Toggle (always visible) -->
                     <li class="nav-item me-3">
-                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle dark/light mode">
                             <i class="fas fa-sun" id="theme-icon"></i>
                         </button>
                     </li>
+                    {% if current_user.is_authenticated %}
                     
                     <!-- Notifications -->
                     <li class="nav-item dropdown me-3">

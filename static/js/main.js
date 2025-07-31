@@ -1,6 +1,6 @@
 // Global variables and initialization
 document.addEventListener('DOMContentLoaded', function() {
-    // Theme toggle functionality
+    // Enhanced Theme toggle functionality
     const themeToggle = document.getElementById('theme-toggle');
     const themeIcon = document.getElementById('theme-icon');
     const body = document.body;
@@ -8,36 +8,94 @@ document.addEventListener('DOMContentLoaded', function() {
     // Get saved theme or default to light
     const savedTheme = localStorage.getItem('theme') || 'light';
     
-    // Apply saved theme
-    if (savedTheme === 'dark') {
-        body.setAttribute('data-theme', 'dark');
-        themeIcon.classList.remove('fa-sun');
-        themeIcon.classList.add('fa-moon');
-    } else {
-        body.removeAttribute('data-theme');
-        themeIcon.classList.remove('fa-moon');
-        themeIcon.classList.add('fa-sun');
-    }
+    // Apply saved theme with animation
+    function applyTheme(theme, animate = false) {
+        if (animate) {
+            // Add transition class for smooth theme change
+            body.style.transition = 'background-color 0.3s ease, color 0.3s ease';
+            setTimeout(() => {
+                body.style.transition = '';
+            }, 300);
+        }
 
-    // Theme toggle event listener
+        if (theme === 'dark') {
+            body.setAttribute('data-theme', 'dark');
+            themeIcon.classList.remove('fa-sun');
+            themeIcon.classList.add('fa-moon');
+            themeToggle.setAttribute('title', 'Switch to light mode');
+        } else {
+            body.removeAttribute('data-theme');
+            themeIcon.classList.remove('fa-moon');
+            themeIcon.classList.add('fa-sun');
+            themeToggle.setAttribute('title', 'Switch to dark mode');
+        }
+    }
+    
+    // Apply saved theme on load
+    applyTheme(savedTheme);
+
+    // Theme toggle event listener with enhanced animations
     if (themeToggle) {
         themeToggle.addEventListener('click', function() {
             const currentTheme = body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
             
-            if (currentTheme === 'dark') {
-                // Switch to light mode
-                body.removeAttribute('data-theme');
-                themeIcon.classList.remove('fa-moon');
-                themeIcon.classList.add('fa-sun');
-                localStorage.setItem('theme', 'light');
-            } else {
-                // Switch to dark mode
-                body.setAttribute('data-theme', 'dark');
-                themeIcon.classList.remove('fa-sun');
-                themeIcon.classList.add('fa-moon');
-                localStorage.setItem('theme', 'dark');
-            }
+            // Add button animation
+            this.style.transform = 'scale(0.9)';
+            setTimeout(() => {
+                this.style.transform = '';
+            }, 150);
+
+            // Apply new theme with animation
+            applyTheme(newTheme, true);
+            localStorage.setItem('theme', newTheme);
+
+            // Show a subtle notification
+            showThemeChangeNotification(newTheme);
         });
+    }
+
+    // Function to show theme change notification
+    function showThemeChangeNotification(theme) {
+        const notification = document.createElement('div');
+        notification.className = 'theme-notification';
+        notification.innerHTML = `
+            <i class="fas fa-${theme === 'dark' ? 'moon' : 'sun'} me-2"></i>
+            Switched to ${theme} mode
+        `;
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: ${theme === 'dark' ? '#334155' : '#ffffff'};
+            color: ${theme === 'dark' ? '#f1f5f9' : '#1f2937'};
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 9999;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border: 1px solid ${theme === 'dark' ? '#475569' : '#e5e7eb'};
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.style.transform = 'translateX(0)';
+        }, 10);
+        
+        // Animate out and remove
+        setTimeout(() => {
+            notification.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, 2000);
     }
 
     // Notification system
