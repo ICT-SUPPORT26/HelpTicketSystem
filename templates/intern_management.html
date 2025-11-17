@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 
 {% block title %}Intern Management - ICT Helpdesk{% endblock %}
@@ -116,7 +115,7 @@
                         </td>
                         <td>
                             <div class="btn-group" role="group">
-                                <form method="POST" action="{{ url_for('approve_user_account', user_id=intern.id) }}" style="display: inline;">
+                                <form method="POST" action="{{ url_for('approve_user_account', user_id=intern.id) }}" class="d-inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <button type="submit" class="btn btn-success btn-sm" 
                                             onclick="return confirm('Approve {{ intern.full_name }} as an intern?')"
@@ -125,7 +124,7 @@
                                     </button>
                                 </form>
                                 <button type="button" class="btn btn-info btn-sm" 
-                                        onclick="showInternDetails({{ intern.id }}, '{{ intern.full_name }}', '{{ intern.email }}', '{{ intern.username }}', '{{ intern.phone_number or '' }}', '{{ intern.created_at.strftime('%Y-%m-%d %H:%M') }}')"
+                                        data-intern-details='{"id": "{{ intern.id }}", "fullName": "{{ intern.full_name|escape }}", "email": "{{ intern.email|escape }}", "username": "{{ intern.username|escape }}", "phone": "{{ intern.phone_number|default('N/A')|escape }}", "registered": "{{ intern.created_at.strftime('%Y-%m-%d %H:%M')|escape }}"}'
                                         title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </button>
@@ -175,16 +174,16 @@
                         </td>
                         <td>
                             <div class="btn-group" role="group">
-                                <form method="POST" action="{{ url_for('toggle_user_status', user_id=intern.id) }}" style="display: inline;">
+                                <form method="POST" action="{{ url_for('toggle_user_status', user_id=intern.id) }}" class="d-inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                    <button type="submit" class="btn btn-warning btn-sm"</old_str> 
+                                    <button type="submit" class="btn btn-warning btn-sm" 
                                             onclick="return confirm('Deactivate {{ intern.full_name }}?')"
                                             title="Deactivate Intern">
                                         <i class="fas fa-ban"></i>
                                     </button>
                                 </form>
                                 <button type="button" class="btn btn-outline-warning btn-sm" 
-                                        onclick="showPasswordModal({{ intern.id }}, '{{ intern.full_name }}')" 
+                                        data-password-details='{"userId": "{{ intern.id }}", "userName": "{{ intern.full_name|escape }}"}'
                                         title="Change Password">
                                     <i class="fas fa-key"></i>
                                 </button>
@@ -227,9 +226,9 @@
                         <td>{{ intern.email }}</td>
                         <td>{{ intern.created_at.strftime('%Y-%m-%d') }}</td>
                         <td>
-                            <form method="POST" action="{{ url_for('toggle_user_status', user_id=intern.id) }}" style="display: inline;">
+                            <form method="POST" action="{{ url_for('toggle_user_status', user_id=intern.id) }}" class="d-inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="btn btn-success btn-sm"</old_str> 
+                                <button type="submit" class="btn btn-success btn-sm" 
                                         onclick="return confirm('Reactivate {{ intern.full_name }}?')"
                                         title="Reactivate Intern">
                                     <i class="fas fa-check me-1"></i>Reactivate
@@ -251,7 +250,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Intern Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" title="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="row">
@@ -288,7 +287,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Update Intern Password</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" title="Close" aria-label="Close"></button>
             </div>
             <form method="POST" action="{{ url_for('update_user_password') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -315,6 +314,11 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+.d-inline {
+    display: inline;
+}
+</style>
 <script>
 function showInternDetails(id, fullName, email, username, phone, registered) {
     document.getElementById('internFullName').textContent = fullName;
@@ -330,5 +334,24 @@ function showPasswordModal(userId, userName) {
     document.getElementById('userName').textContent = userName;
     new bootstrap.Modal(document.getElementById('passwordModal')).show();
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    const detailButtons = document.querySelectorAll('[data-intern-details]');
+    const passwordButtons = document.querySelectorAll('[data-password-details]');
+
+    detailButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const details = JSON.parse(this.getAttribute('data-intern-details'));
+            showInternDetails(details.id, details.fullName, details.email, details.username, details.phone, details.registered);
+        });
+    });
+
+    passwordButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const details = JSON.parse(this.getAttribute('data-password-details'));
+            showPasswordModal(details.userId, details.userName);
+        });
+    });
+});
 </script>
 {% endblock %}

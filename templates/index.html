@@ -86,6 +86,7 @@
             position: absolute;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.1);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             animation: floatHome 20s infinite linear;
         }
@@ -126,6 +127,7 @@
         .login-panel {
             flex: 0 0 450px;
             background: rgba(255, 255, 255, 0.95);
+            -webkit-backdrop-filter: blur(20px);
             backdrop-filter: blur(20px);
             display: flex;
             align-items: center;
@@ -541,7 +543,7 @@
         <div class="login-panel">
             <div class="login-form-container">
                 <div class="login-header">
-                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="ICT Helpdesk Logo" class="img-fluid mb-3" style="max-width: 150px;">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="ICT Helpdesk Logo" class="img-fluid mb-3 logo-img">
                     <h2 class="login-title">USER LOGIN</h2>
                     <p class="login-subtitle">Sign in to access your account</p>
                 </div>
@@ -564,7 +566,7 @@
                             <input type="checkbox" name="remember_me" value="y">
                             <span>Remember me</span>
                         </label>
-                        <a href="{{ url_for('forgot_password') }}" class="forgot-link">Forgot password?</a>
+                        <a href="{{ url_for('change_password') }}" class="forgot-link">Forgot password?</a>
                     </div>
                     
                     <button type="submit" class="btn-login-split">LOGIN</button>

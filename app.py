@@ -15,15 +15,12 @@ app.secret_key = os.environ.get("SESSION_SECRET", "default_secret_key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///helpdesk.db")
+#app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///helpdesk.db")
 
 #app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "mysql+pymysql://root:@localhost:3306/helpticket_system")
 
 
-# app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-   # "DATABASE_URL",
-   # "mysql+pymysql://flaskuser:flaskpass@db:3306/helpticket_system"
-#)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL","mysql+pymysql://flaskuser:flaskpass@db:3306/helpticket_system")
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,

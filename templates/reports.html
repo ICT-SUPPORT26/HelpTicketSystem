@@ -24,7 +24,7 @@
         <form method="GET" action="{{ url_for('reports') }}" class="row g-3">
             <div class="col-md-2">
                 <label class="form-label">Date Range</label>
-                <select name="date_range" class="form-control">
+                <select name="date_range" class="form-control" title="Date Range">
                     <option value="daily" {% if request.args.get('date_range') == 'daily' %}selected{% endif %}>Last 24 Hours</option>
                     <option value="weekly" {% if request.args.get('date_range') == 'weekly' %}selected{% endif %}>Last 7 Days</option>
                     <option value="monthly" {% if request.args.get('date_range') == 'monthly' %}selected{% endif %}>Last 30 Days</option>
@@ -34,15 +34,15 @@
             </div>
             <div class="col-md-2">
                 <label class="form-label">Custom Start Date</label>
-                <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+                <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}" placeholder="Select start date" title="Custom Start Date">
             </div>
             <div class="col-md-2">
                 <label class="form-label">Custom End Date</label>
-                <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
+                <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}" placeholder="Select end date" title="Custom End Date">
             </div>
             <div class="col-md-2">
                 <label class="form-label">Status</label>
-                <select name="status" class="form-control">
+                <select name="status" class="form-control" title="Status">
                     <option value="">All Statuses</option>
                     <option value="open" {% if request.args.get('status') == 'open' %}selected{% endif %}>Open</option>
                     <option value="in_progress" {% if request.args.get('status') == 'in_progress' %}selected{% endif %}>In Progress</option>
@@ -52,7 +52,7 @@
             </div>
             <div class="col-md-2">
                 <label class="form-label">Priority</label>
-                <select name="priority" class="form-control">
+                <select name="priority" class="form-control" title="Priority">
                     <option value="">All Priorities</option>
                     <option value="low" {% if request.args.get('priority') == 'low' %}selected{% endif %}>Low</option>
                     <option value="medium" {% if request.args.get('priority') == 'medium' %}selected{% endif %}>Medium</option>
@@ -65,7 +65,7 @@
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-search me-2"></i>Apply Filters
                     </button>
-                    <a href="{{ url_for('reports') }}" class="btn btn-outline-secondary">
+                    <a href="{{ url_for('reports') }}" class="btn btn-outline-secondary" title="Clear Filters" aria-label="Clear Filters">
                         <i class="fas fa-times"></i>
                     </a>
                 </div>
@@ -106,7 +106,7 @@
                         <h3 class="stats-number" data-stat="open-tickets">{{ open_tickets|default(0) }}</h3>
                         <p class="stats-label">Open</p>
                         <div class="stats-progress">
-                            <div class="progress-bar" style="width: {{ (open_tickets / total_tickets * 100) if total_tickets > 0 else 0 }}%"></div>
+                            <div class="progress-bar" style="width: '{{ (open_tickets / total_tickets * 100) if total_tickets > 0 else 0 }}%'"></div>
                         </div>
                     </div>
                 </div>

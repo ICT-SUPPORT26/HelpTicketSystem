@@ -9,7 +9,7 @@
     <i class="fas fa-exclamation-triangle me-2"></i>
     <strong>{{ pending_interns_count }}</strong> intern{{ 's' if pending_interns_count != 1 else '' }} waiting for approval.
     <a href="{{ url_for('pending_users') }}" class="alert-link">Review now</a>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>
 {% endif %}
 
@@ -194,7 +194,6 @@
             </div>
         </a>
     </div>
-</div>
 </div>
 
 <!-- Quick Actions Panel -->

@@ -74,20 +74,20 @@ def login():
                 if not user.is_active:
                     flash('Your account has been deactivated. Please contact administrator.', 'danger')
                     return redirect(url_for('index'))
-
+                
                 # Check if account is verified
                 if not user.is_verified:
                     flash('Please verify your email address before logging in.', 'warning')
                     return redirect(url_for('index'))
-
+                
                 # Check approval status for interns only
                 if user.role == 'intern' and not user.is_approved:
                     print(f"DEBUG: Intern {user.username} is not approved. is_approved={user.is_approved}, is_active={user.is_active}, role={user.role}")
                     flash('Your intern account is pending admin approval. Please wait for activation.', 'warning')
                     return redirect(url_for('index'))
-
+                
                 print(f"DEBUG: User {user.username} login SUCCESS - role={user.role}, is_approved={user.is_approved}, is_active={user.is_active}")
-
+                
                 login_user(user, remember=remember_me)
                 next_page = request.args.get('next')
                 if not next_page or not next_page.startswith('/'):
@@ -136,11 +136,11 @@ def register():
 
         # Generate verification token
         token = str(uuid.uuid4())
-
+        
         # Auto-approve users, require admin approval only for interns
         is_approved = form.role.data in ['admin', 'user']
         is_active = form.role.data in ['admin', 'user']
-
+        
         user = User(
             username=form.username.data,
             email=form.email.data,
@@ -161,7 +161,7 @@ def register():
             print(f"Database error during user creation: {e}")
             flash('Registration failed. Please try again.', 'danger')
             return render_template('register.html', form=form)
-
+        
         # Send verification email (only if email is configured)
         try:
             if app.config.get('MAIL_USERNAME') and app.config.get('MAIL_PASSWORD'):
@@ -181,13 +181,13 @@ def register():
             # Mark user as verified automatically if email fails
             user.is_verified = True
             user.verification_token = None
-
+        
         db.session.commit()
-
+        
         # Notify all admins about new intern registration (users are auto-approved)
         if form.role.data == 'intern':
             NotificationManager.notify_new_user_registration(user)
-
+        
         if form.role.data == 'user':
             if email_sent:
                 flash('Registration successful! Please check your email to verify your account, then you can login.', 'info')
@@ -240,7 +240,7 @@ def admin_dashboard():
 
     # Get categories for dashboard display
     categories = Category.query.order_by(Category.name).all()
-
+    
     # Import CategoryForm for the modal
     from forms import CategoryForm
     category_form = CategoryForm()
@@ -292,17 +292,6 @@ def new_ticket():
     form = TicketForm()
 
     if form.validate_on_submit():
-        # Combine location fields
-        location_parts = []
-        if form.location_department.data:
-            location_parts.append(form.location_department.data)
-        if form.location_subunit.data:
-            location_parts.append(form.location_subunit.data)
-        if form.location.data:
-            location_parts.append(form.location.data)
-
-        combined_location = ' - '.join(location_parts) if location_parts else 'Not specified'
-
         # Get selected assignees
         assignee_ids = form.assignees.data or []
         # Priority-based limits
@@ -330,8 +319,13 @@ def new_ticket():
         nairobi_tz = pytz.timezone('Africa/Nairobi')
         now_nairobi = datetime.now(nairobi_tz)
         # Compose location string from dropdowns if used
-        location = combined_location
-
+        location = form.location.data
+        if form.location_unit.data:
+            location = form.location_unit.data
+            if form.location_subunit.data:
+                location += f" - {form.location_subunit.data}"
+            if form.location_detail.data:
+                location += f" - {form.location_detail.data}"
         # If University MIS System Issue, append subcategory to description
         category_obj = Category.query.get(form.category_id.data)
         description = form.description.data
@@ -529,10 +523,10 @@ def update_ticket(id):
         if form.status.data == 'closed' and old_status != 'closed':
             # Store current assignees before any modifications
             current_assignees = list(ticket.assignees)
-
+            
             ticket.closed_at = datetime.utcnow()
             ticket.closed_by_id = current_user.id
-
+            
             # CRITICAL: Ensure assignees are preserved when closing
             # This is essential for maintaining proper tracking and reports
             if current_user.role == 'admin' and form.assignees.data is not None:
@@ -541,7 +535,7 @@ def update_ticket(id):
             else:
                 # Otherwise preserve existing assignees
                 ticket.assignees = current_assignees
-
+                
         elif form.status.data != 'closed':
             ticket.closed_at = None
             ticket.closed_by_id = None
@@ -638,12 +632,12 @@ def close_ticket(id):
 
     # Store assignees before closing to ensure they're preserved
     original_assignees = list(ticket.assignees)
-
+    
     ticket.status = 'closed'
     ticket.closed_at = datetime.utcnow()
     ticket.closed_by_id = current_user.id
     ticket.updated_at = datetime.utcnow()
-
+    
     # Ensure assignees are preserved - this is critical for reports and tracking
     ticket.assignees = original_assignees
 
@@ -675,7 +669,7 @@ def reports_pdf():
     # Use same logic as main reports route for consistency
     date_range = request.args.get('date_range', 'monthly')
     end_date = datetime.utcnow()
-
+    
     # Custom date range takes precedence
     custom_start = request.args.get('start_date')
     custom_end = request.args.get('end_date')
@@ -803,7 +797,7 @@ def reports():
     # Enhanced filters with new date range options
     date_range = request.args.get('date_range', 'all')  # Default to all for broader range
     end_date = datetime.utcnow()
-
+    
     # Custom date range takes precedence
     custom_start = request.args.get('start_date')
     custom_end = request.args.get('end_date')
@@ -883,7 +877,7 @@ def reports():
         ticket_query = ticket_query.filter(Ticket.location.contains(department_filter))
 
     tickets = ticket_query.all()
-
+    
     # Debug information
     print(f"DEBUG: Reports query - Date range: {start_date} to {end_date}")
     print(f"DEBUG: Found {len(tickets)} tickets")
@@ -939,11 +933,11 @@ def reports():
         staff_performance = staff_performance.filter(User.id == attended_by)
 
     staff_performance = staff_performance.group_by(User.id, User.full_name, User.role).all()
-
+    
     print(f"DEBUG: Staff performance query returned {len(staff_performance)} results")
     print(f"DEBUG: Date range used: {start_date} to {end_date}")
     print(f"DEBUG: Total tickets found: {len(tickets)}")
-
+    
     # If no staff performance but tickets exist, it means tickets are unassigned
     if len(tickets) > 0 and len(staff_performance) == 0:
         print("DEBUG: Tickets exist but no staff performance - likely unassigned tickets")
@@ -974,7 +968,7 @@ def reports():
     priority_dict = {}
     for t in tickets:
         priority_dict[t.priority] = priority_dict.get(t.priority, 0) + 1
-
+    
     # Create priority_stats in both formats for template compatibility
     priority_stats = [{'priority': k, 'count': v} for k, v in priority_dict.items()]
     # Also create a direct dict for easy access in template
@@ -1042,225 +1036,12 @@ def reports():
 
 @app.route('/user-stats')
 @login_required
+@cache.cached(timeout=300, key_prefix='user_stats')
 def get_user_stats():
     user_stats = db.session.query(
         User.role,
         func.count(User.id).label('count')
     ).filter(User.role != None).group_by(User.role).all()
-
-
-@app.route('/api/dashboard-stats')
-@login_required
-def api_dashboard_stats():
-    """Get real-time dashboard statistics"""
-    if current_user.role != 'admin':
-        abort(403)
-
-    try:
-        stats = get_dashboard_stats(current_user)
-        
-        # Get additional real-time data
-        total_tickets = Ticket.query.count()
-        open_tickets = Ticket.query.filter_by(status='open').count()
-        in_progress_tickets = Ticket.query.filter_by(status='in_progress').count()
-        resolved_tickets = Ticket.query.filter_by(status='resolved').count()
-        closed_tickets = Ticket.query.filter_by(status='closed').count()
-        
-        # Get overdue tickets count
-        overdue_count = 0
-        overdue_tickets = Ticket.query.filter(
-            Ticket.due_date < datetime.utcnow(),
-            ~Ticket.status.in_(['resolved', 'closed'])
-        ).all()
-        overdue_count = len(overdue_tickets)
-
-        # Calculate priority distribution
-        priority_counts = {
-            'urgent': Ticket.query.filter_by(priority='urgent').count(),
-            'high': Ticket.query.filter_by(priority='high').count(),
-            'medium': Ticket.query.filter_by(priority='medium').count(),
-            'low': Ticket.query.filter_by(priority='low').count()
-        }
-
-        # Calculate average resolution time
-        resolved_tickets_with_times = Ticket.query.filter(
-            Ticket.status.in_(['resolved', 'closed']),
-            Ticket.closed_at.isnot(None)
-        ).all()
-        
-        avg_resolution_time = None
-        if resolved_tickets_with_times:
-            total_time = sum([(t.closed_at - t.created_at).total_seconds() for t in resolved_tickets_with_times])
-            avg_resolution_time = total_time / len(resolved_tickets_with_times) / 3600  # in hours
-
-        return jsonify({
-            'total_tickets': total_tickets,
-            'open_tickets': open_tickets,
-            'in_progress_tickets': in_progress_tickets,
-            'resolved_tickets': resolved_tickets,
-            'closed_tickets': closed_tickets,
-            'overdue_tickets': overdue_count,
-            'priority_counts': priority_counts,
-            'avg_resolution_time': avg_resolution_time,
-            'stats': stats,
-            'timestamp': datetime.utcnow().isoformat()
-        })
-    except Exception as e:
-        print(f"Error getting dashboard stats: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/analytics-stats')
-@login_required
-def api_analytics_stats():
-    """Get real-time analytics statistics"""
-    if current_user.role != 'admin':
-        abort(403)
-
-    try:
-        # Quick stats for last 30 days
-        start_date = datetime.utcnow() - timedelta(days=30)
-
-        # Key performance indicators
-        total_tickets = Ticket.query.filter(Ticket.created_at >= start_date).count()
-        resolved_this_month = Ticket.query.filter(
-            Ticket.created_at >= start_date,
-            Ticket.status.in_(['resolved', 'closed'])
-        ).count()
-
-        # SLA compliance (assuming 2-day target)
-        sla_compliant = 0
-        sla_total = 0
-        for ticket in Ticket.query.filter(
-            Ticket.created_at >= start_date,
-            Ticket.status.in_(['resolved', 'closed']),
-            Ticket.closed_at.isnot(None)
-        ).all():
-            sla_total += 1
-            resolution_time = (ticket.closed_at - ticket.created_at).total_seconds() / 3600
-            if resolution_time <= 48:  # 48 hours = 2 days
-                sla_compliant += 1
-
-        sla_percentage = (sla_compliant / sla_total * 100) if sla_total > 0 else 0
-
-        # Top categories
-        top_categories = db.session.query(
-            Category.name,
-            func.count(Ticket.id).label('count')
-        ).join(Ticket, Category.id == Ticket.category_id)\
-         .filter(Ticket.created_at >= start_date)\
-         .group_by(Category.name)\
-         .order_by(func.count(Ticket.id).desc())\
-         .limit(5).all()
-
-        return jsonify({
-            'total_tickets': total_tickets,
-            'resolved_this_month': resolved_this_month,
-            'sla_percentage': sla_percentage,
-            'top_categories': [{'name': cat.name, 'count': cat.count} for cat in top_categories],
-            'timestamp': datetime.utcnow().isoformat()
-        })
-    except Exception as e:
-        print(f"Error getting analytics stats: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/reports-stats')
-@login_required
-def api_reports_stats():
-    """Get real-time reports statistics with filters"""
-    if current_user.role != 'admin':
-        abort(403)
-
-    try:
-        # Get filter parameters
-        date_range = request.args.get('date_range', 'all')
-        end_date = datetime.utcnow()
-
-        # Custom date range takes precedence
-        custom_start = request.args.get('start_date')
-        custom_end = request.args.get('end_date')
-        if custom_start and custom_end:
-            try:
-                start_date = datetime.strptime(custom_start, '%Y-%m-%d')
-                end_date = datetime.strptime(custom_end, '%Y-%m-%d') + timedelta(days=1)
-            except ValueError:
-                start_date = datetime(2020, 1, 1)
-        else:
-            # Calculate start date based on range
-            if date_range == 'daily':
-                start_date = end_date - timedelta(days=1)
-            elif date_range == 'weekly':
-                start_date = end_date - timedelta(days=7)
-            elif date_range == 'monthly':
-                start_date = end_date - timedelta(days=30)
-            elif date_range == 'yearly':
-                start_date = end_date - timedelta(days=365)
-            else:  # 'all'
-                start_date = datetime(2020, 1, 1)
-
-        # Filter parameters
-        status_filter = request.args.get('status', '')
-        priority_filter = request.args.get('priority', '')
-        category_filter = request.args.get('category', type=int)
-
-        # Build ticket query with filters
-        ticket_query = Ticket.query.filter(
-            Ticket.created_at >= start_date,
-            Ticket.created_at <= end_date
-        )
-
-        if status_filter:
-            ticket_query = ticket_query.filter(Ticket.status == status_filter)
-        if priority_filter:
-            ticket_query = ticket_query.filter(Ticket.priority == priority_filter)
-        if category_filter:
-            ticket_query = ticket_query.filter(Ticket.category_id == category_filter)
-
-        tickets = ticket_query.all()
-
-        # Calculate statistics
-        total_tickets = len(tickets)
-        open_tickets = len([t for t in tickets if t.status == 'open'])
-        in_progress_tickets = len([t for t in tickets if t.status == 'in_progress'])
-        resolved_tickets = len([t for t in tickets if t.status == 'resolved'])
-        closed_tickets = len([t for t in tickets if t.status == 'closed'])
-
-        # Priority counts
-        priority_counts = {
-            'urgent': len([t for t in tickets if t.priority == 'urgent']),
-            'high': len([t for t in tickets if t.priority == 'high']),
-            'medium': len([t for t in tickets if t.priority == 'medium']),
-            'low': len([t for t in tickets if t.priority == 'low'])
-        }
-
-        # Average resolution time
-        tickets_with_times = [t for t in tickets if t.status in ['resolved', 'closed'] and t.closed_at]
-        avg_resolution_time = None
-        if tickets_with_times:
-            total_time = sum([(t.closed_at - t.created_at).total_seconds() for t in tickets_with_times])
-            avg_resolution_time = total_time / len(tickets_with_times) / 3600  # in hours
-
-        # Overdue tickets
-        overdue_count = 0
-        for ticket in tickets:
-            if ticket.due_date and ticket.status not in ['resolved', 'closed']:
-                if datetime.utcnow() > ticket.due_date:
-                    overdue_count += 1
-
-        return jsonify({
-            'total_tickets': total_tickets,
-            'open_tickets': open_tickets,
-            'in_progress_tickets': in_progress_tickets,
-            'resolved_tickets': resolved_tickets,
-            'closed_tickets': closed_tickets,
-            'overdue_tickets': overdue_count,
-            'priority_counts': priority_counts,
-            'avg_resolution_time': avg_resolution_time,
-            'timestamp': datetime.utcnow().isoformat()
-        })
-    except Exception as e:
-        print(f"Error getting reports stats: {e}")
-        return jsonify({'error': str(e)}), 500
-
     return jsonify(user_stats)
 
 @app.route('/admin/users')
@@ -1466,7 +1247,7 @@ def api_notifications():
     print(f"DEBUG: Loading notifications for user {current_user.id}")
     notifications = NotificationManager.get_user_notifications(current_user.id, limit=20)
     print(f"DEBUG: Found {len(notifications)} notifications")
-
+    
     notification_data = []
     for notification in notifications:
         notification_data.append({
@@ -1479,7 +1260,7 @@ def api_notifications():
             'ticket_id': notification.ticket_id,
             'link': url_for('ticket_detail', id=notification.ticket_id) if notification.ticket_id else None
         })
-
+    
     return jsonify(notification_data)
 
 @app.route('/api/notifications/unread_count')
@@ -1525,7 +1306,7 @@ def api_recent_notifications():
         ).order_by(Notification.created_at.desc()).limit(10).all()
     else:
         notifications = []
-
+    
     notification_data = []
     for notification in notifications:
         notification_data.append({
@@ -1538,7 +1319,7 @@ def api_recent_notifications():
             'ticket_id': notification.ticket_id,
             'link': url_for('ticket_detail', id=notification.ticket_id) if notification.ticket_id else None
         })
-
+    
     return jsonify(notification_data)
 
 @app.route('/api/notifications/clear_all', methods=['POST'])
@@ -1558,10 +1339,10 @@ def debug_tickets():
     """Debug route to inspect ticket data"""
     if current_user.role != 'admin':
         abort(403)
-
+    
     tickets = Ticket.query.order_by(Ticket.created_at.desc()).limit(10).all()
     debug_data = []
-
+    
     for ticket in tickets:
         debug_data.append({
             'id': ticket.id,
@@ -1571,12 +1352,12 @@ def debug_tickets():
             'updated_at': ticket.updated_at.isoformat() if ticket.updated_at else None,
             'assignees': [a.full_name for a in ticket.assignees] if ticket.assignees else []
         })
-
+    
     total_count = Ticket.query.count()
     now = datetime.utcnow()
     week_ago = now - timedelta(days=7)
     recent_count = Ticket.query.filter(Ticket.created_at >= week_ago).count()
-
+    
     return jsonify({
         'tickets': debug_data,
         'total_count': total_count,
@@ -1591,10 +1372,10 @@ def debug_notifications():
     """Debug route to inspect notification data"""
     if current_user.role != 'admin':
         abort(403)
-
+    
     notifications = Notification.query.filter_by(user_id=current_user.id).all()
     debug_data = []
-
+    
     for notif in notifications:
         debug_data.append({
             'id': notif.id,
@@ -1605,10 +1386,10 @@ def debug_notifications():
             'created_at': notif.created_at.isoformat(),
             'read_at': notif.read_at.isoformat() if notif.read_at else None
         })
-
+    
     unread_count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
     total_count = Notification.query.filter_by(user_id=current_user.id).count()
-
+    
     return jsonify({
         'notifications': debug_data,
         'unread_count': unread_count,
@@ -1672,13 +1453,13 @@ def notification_settings():
         settings = NotificationSettings(user_id=current_user.id)
         db.session.add(settings)
         db.session.commit()
-
+    
     form = NotificationSettingsForm(obj=settings)
-
+    
     if form.validate_on_submit():
         # Update settings from form
         form.populate_obj(settings)
-
+        
         # Handle time fields specially - set to None if empty
         if form.dnd_start_time.data and form.dnd_start_time.data.strip():
             try:
@@ -1687,7 +1468,7 @@ def notification_settings():
                 settings.dnd_start_time = None
         else:
             settings.dnd_start_time = None
-
+            
         if form.dnd_end_time.data and form.dnd_end_time.data.strip():
             try:
                 settings.dnd_end_time = datetime.strptime(form.dnd_end_time.data, '%H:%M').time()
@@ -1695,11 +1476,11 @@ def notification_settings():
                 settings.dnd_end_time = None
         else:
             settings.dnd_end_time = None
-
+        
         db.session.commit()
         flash('Notification settings updated successfully', 'success')
         return redirect(url_for('notification_settings'))
-
+    
     return render_template('notification_settings.html', settings=settings, form=form)
 
 @app.route('/change_password', methods=['GET', 'POST'])
@@ -1707,20 +1488,20 @@ def notification_settings():
 def change_password():
     """Allow users to change their own password"""
     form = PasswordChangeForm()
-
+    
     if form.validate_on_submit():
         # Verify current password
         if not check_password_hash(current_user.password_hash, form.current_password.data):
             flash('Current password is incorrect', 'danger')
             return render_template('change_password.html', form=form)
-
+        
         # Update password
         current_user.password_hash = generate_password_hash(form.new_password.data)
         db.session.commit()
-
+        
         flash('Password changed successfully', 'success')
         return redirect(url_for('dashboard'))
-
+    
     return render_template('change_password.html', form=form)
 
 @app.route('/admin/users/<int:user_id>/toggle_status', methods=['POST'])
@@ -1729,18 +1510,18 @@ def toggle_user_status(user_id):
     """Admin route to activate/deactivate user accounts"""
     if current_user.role != 'admin':
         abort(403)
-
+    
     user = User.query.get_or_404(user_id)
-
+    
     # Prevent admin from deactivating themselves
     if user.id == current_user.id:
         flash('You cannot deactivate your own account', 'danger')
         return redirect(url_for('user_management'))
-
+    
     # Toggle status
     user.is_active = not user.is_active
     status_text = 'activated' if user.is_active else 'deactivated'
-
+    
     # If deactivating, remove from all assigned tickets
     if not user.is_active:
         tickets_assigned = Ticket.query.join(Ticket.assignees).filter(User.id == user_id).all()
@@ -1748,7 +1529,7 @@ def toggle_user_status(user_id):
             ticket.assignees = [u for u in ticket.assignees if u.id != user_id]
             if ticket.status == 'in_progress' and not ticket.assignees:
                 ticket.status = 'open'
-
+    
     db.session.commit()
     flash(f'User {user.full_name} has been {status_text}', 'success')
     return redirect(url_for('user_management'))
@@ -1761,23 +1542,23 @@ def pending_users():
     """Show pending user approvals"""
     if current_user.role != 'admin':
         abort(403)
-
+    
     # Get pending interns
     pending_interns = User.query.filter_by(
         is_approved=False,
         is_verified=True,
         role='intern'
     ).order_by(User.created_at.desc()).all()
-
+    
     # Get approved interns for reference
     approved_interns = User.query.filter_by(
         is_approved=True,
         role='intern'
     ).order_by(User.created_at.desc()).limit(10).all()
-
+    
     # Import csrf for token generation
     from flask_wtf.csrf import generate_csrf
-
+    
     return render_template('pending_users.html', 
                          pending_interns=pending_interns, 
                          approved_interns=approved_interns,
@@ -1789,26 +1570,26 @@ def intern_management():
     """Dedicated intern management interface"""
     if current_user.role != 'admin':
         abort(403)
-
+    
     # Get all interns with different statuses
     pending_interns = User.query.filter_by(
         is_approved=False,
         is_verified=True,
         role='intern'
     ).order_by(User.created_at.desc()).all()
-
+    
     active_interns = User.query.filter_by(
         is_approved=True,
         is_active=True,
         role='intern'
     ).order_by(User.created_at.desc()).all()
-
+    
     inactive_interns = User.query.filter_by(
         is_approved=True,
         is_active=False,
         role='intern'
     ).order_by(User.created_at.desc()).all()
-
+    
     # Get intern performance statistics
     intern_stats = []
     for intern in active_interns:
@@ -1816,21 +1597,21 @@ def intern_management():
             User.id == intern.id,
             Ticket.status.in_(['open', 'in_progress'])
         ).count()
-
+        
         completed_tickets = Ticket.query.join(Ticket.assignees).filter(
             User.id == intern.id,
             Ticket.status.in_(['resolved', 'closed'])
         ).count()
-
+        
         intern_stats.append({
             'intern': intern,
             'active_tickets': active_tickets,
             'completed_tickets': completed_tickets
         })
-
+    
     # Import csrf for token generation
     from flask_wtf.csrf import generate_csrf
-
+    
     return render_template('intern_management.html', 
                          pending_interns=pending_interns,
                          active_interns=active_interns,
@@ -1844,14 +1625,14 @@ def staff_management():
     """Dedicated staff/user management interface"""
     if current_user.role != 'admin':
         abort(403)
-
+    
     # Get all staff (non-intern users)
     staff_users = User.query.filter(User.role.in_(['user', 'admin'])).order_by(User.created_at.desc()).all()
-
+    
     # Separate active and inactive staff
     active_staff = [u for u in staff_users if u.is_active]
     inactive_staff = [u for u in staff_users if not u.is_active]
-
+    
     return render_template('staff_management.html', 
                          active_staff=active_staff,
                          inactive_staff=inactive_staff)
@@ -1862,32 +1643,32 @@ def approve_user_account(user_id):
     """Approve a pending user account"""
     if current_user.role != 'admin':
         abort(403)
-
+    
     user = User.query.get_or_404(user_id)
-
+    
     if user.is_approved:
         flash(f'{user.full_name} is already approved', 'info')
         return redirect(url_for('pending_users'))
-
+    
     print(f"DEBUG: Approving user {user.username} - Current role: {user.role}")
-
+    
     # Approve the user - preserve the original role
     user.is_approved = True
     user.is_active = True
     user.approved_by_id = current_user.id
     user.approved_at = datetime.utcnow()
     # DO NOT change the role - keep it as 'intern'
-
+    
     db.session.commit()
-
+    
     print(f"DEBUG: After approval - User {user.username} role: {user.role}, is_approved: {user.is_approved}, is_active: {user.is_active}")
-
+    
     # Send notification to the approved user
     try:
         NotificationManager.notify_user_approved(user, current_user)
     except:
         pass  # Don't fail if notification fails
-
+    
     flash(f'{user.full_name} (Intern) has been approved and can now login', 'success')
     return redirect(url_for('pending_users'))
 
@@ -1900,64 +1681,3 @@ def get_current_timestamp():
 def get_reports_data():
     task = generate_report_data.apply_async()
     return jsonify({"task_id": task.id})
-
-@app.route('/forgot_password', methods=['GET', 'POST'])
-def forgot_password():
-    from forms import ForgotPasswordForm
-    form = ForgotPasswordForm()
-    
-    if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
-        if user:
-            # Generate a password reset token (simple implementation)
-            import uuid
-            reset_token = str(uuid.uuid4())
-            user.verification_token = reset_token  # Reuse this field for password reset
-            db.session.commit()
-            
-            # Send password reset email (if email is configured)
-            try:
-                if app.config.get('MAIL_USERNAME') and app.config.get('MAIL_PASSWORD'):
-                    reset_url = url_for('reset_password', token=reset_token, _external=True)
-                    msg = Message('Password Reset - ICT Helpdesk', recipients=[user.email])
-                    msg.body = f"Hello {user.full_name},\n\nYou requested a password reset. Click the link below to reset your password:\n{reset_url}\n\nIf you did not request this, please ignore this email."
-                    mail.send(msg)
-                    flash('Password reset instructions have been sent to your email address.', 'info')
-                else:
-                    flash('Password reset is not available. Please contact the administrator.', 'warning')
-            except Exception as e:
-                print(f"Email sending failed: {e}")
-                flash('Password reset is not available. Please contact the administrator.', 'warning')
-        else:
-            # Don't reveal if user exists or not for security
-            flash('If a user with that payroll number exists, password reset instructions have been sent.', 'info')
-        
-        return redirect(url_for('index'))
-    
-    return render_template('forgot_password.html', form=form)
-
-@app.route('/reset_password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
-    user = User.query.filter_by(verification_token=token).first_or_404()
-    
-    if request.method == 'POST':
-        new_password = request.form.get('new_password')
-        confirm_password = request.form.get('confirm_password')
-        
-        if not new_password or len(new_password) < 6:
-            flash('Password must be at least 6 characters long.', 'danger')
-            return render_template('reset_password.html', token=token)
-        
-        if new_password != confirm_password:
-            flash('Passwords do not match.', 'danger')
-            return render_template('reset_password.html', token=token)
-        
-        # Update password
-        user.password_hash = generate_password_hash(new_password)
-        user.verification_token = None  # Clear the reset token
-        db.session.commit()
-        
-        flash('Your password has been updated successfully. You can now login.', 'success')
-        return redirect(url_for('index'))
-    
-    return render_template('reset_password.html', token=token)
