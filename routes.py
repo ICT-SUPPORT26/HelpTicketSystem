@@ -318,14 +318,22 @@ def new_ticket():
 
         nairobi_tz = pytz.timezone('Africa/Nairobi')
         now_nairobi = datetime.now(nairobi_tz)
-        # Compose location string from dropdowns if used
-        location = form.location.data
-        if form.location_unit.data:
-            location = form.location_unit.data
-            if form.location_subunit.data:
-                location += f" - {form.location_subunit.data}"
-            if form.location_detail.data:
-                location += f" - {form.location_detail.data}"
+        # Compose location string from department/subunit/location dropdowns
+        loc_parts = []
+        # Department (named `location_department` in the form)
+        dept = form.location_department.data if hasattr(form, 'location_department') else None
+        if dept:
+            loc_parts.append(dept)
+        # Subunit (optional)
+        subunit = form.location_subunit.data if hasattr(form, 'location_subunit') else None
+        if subunit:
+            loc_parts.append(subunit)
+        # Specific location/detail
+        detail = form.location.data if hasattr(form, 'location') else None
+        if detail:
+            loc_parts.append(detail)
+
+        location = ' - '.join([p for p in loc_parts if p]) if loc_parts else (form.location.data if hasattr(form, 'location') and form.location.data else '')
         # If University MIS System Issue, append subcategory to description
         category_obj = Category.query.get(form.category_id.data)
         description = form.description.data

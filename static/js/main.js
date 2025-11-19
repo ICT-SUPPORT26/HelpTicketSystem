@@ -49,53 +49,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Apply new theme with animation
             applyTheme(newTheme, true);
             localStorage.setItem('theme', newTheme);
-
-            // Show a subtle notification
-            showThemeChangeNotification(newTheme);
         });
-    }
-
-    // Function to show theme change notification
-    function showThemeChangeNotification(theme) {
-        const notification = document.createElement('div');
-        notification.className = 'theme-notification';
-        notification.innerHTML = `
-            <i class="fas fa-${theme === 'dark' ? 'moon' : 'sun'} me-2"></i>
-            Switched to ${theme} mode
-        `;
-        notification.style.cssText = `
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            background: ${theme === 'dark' ? '#334155' : '#ffffff'};
-            color: ${theme === 'dark' ? '#f1f5f9' : '#1f2937'};
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            z-index: 9999;
-            font-size: 0.9rem;
-            font-weight: 500;
-            border: 1px solid ${theme === 'dark' ? '#475569' : '#e5e7eb'};
-            transform: translateX(100%);
-            transition: transform 0.3s ease;
-        `;
-        
-        document.body.appendChild(notification);
-        
-        // Animate in
-        setTimeout(() => {
-            notification.style.transform = 'translateX(0)';
-        }, 10);
-        
-        // Animate out and remove
-        setTimeout(() => {
-            notification.style.transform = 'translateX(100%)';
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
-                }
-            }, 300);
-        }, 2000);
     }
 
     // Notification system
@@ -754,12 +708,12 @@ class NotificationManager {
         // Update every 30 seconds
         this.updateInterval = setInterval(() => {
             this.updateUnreadCount();
-        }, 30000);
+        }, 10000);
 
         // Check for new notifications every 60 seconds
         setInterval(() => {
             this.loadNotifications();
-        }, 60000);
+        }, 20000);
     }
 
     getCsrfToken() {

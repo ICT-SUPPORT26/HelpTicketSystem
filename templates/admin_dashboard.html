@@ -378,7 +378,7 @@
                 <h5 class="modal-title">
                     <i class="fas fa-tags me-2"></i>Add New Category
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" title="Close" aria-label="Close"></button>
             </div>
             <form method="POST" action="{{ url_for('add_category') }}">
                 {{ category_form.hidden_tag() }}

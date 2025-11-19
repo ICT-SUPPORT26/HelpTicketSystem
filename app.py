@@ -7,6 +7,7 @@ from flask_wtf.csrf import CSRFProtect
 from extensions import db, login_manager, mail
 from datetime import datetime
 
+
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -14,13 +15,11 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "default_secret_key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Database
-#app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///helpdesk.db")
-
-#app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "mysql+pymysql://root:@localhost:3306/helpticket_system")
+# Database configuration
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "mysql+pymysql://root:@localhost:3306/helpticket_system")
 
 
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL","mysql+pymysql://flaskuser:flaskpass@db:3306/helpticket_system")
+#app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("SQLALCHEMY_DATABASE_URI","mysql+pymysql://flaskuser:flaskpass@db:3306/helpticket_system")
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
@@ -36,7 +35,7 @@ app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True') == 'True'
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'helpdesk@company.com')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'helpticketsystem@outlook.com')
 
 # Extensions
 db.init_app(app)
