@@ -122,7 +122,7 @@ body, html {
    Navigation
    ===================== */
 .navbar {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-dark) 100%);
     -webkit-backdrop-filter: blur(10px); /* Safari compatibility */
     backdrop-filter: blur(10px);
     border: 1px solid;
@@ -153,11 +153,11 @@ body, html {
 }
 
 .navbar-nav .nav-link {
-    background: var(--primary);
-    color: rgba(255, 255, 255, 0.9) !important;
+    background: var(--info);
+    color: rgba(255, 255, 255, 0.945) !important;
     font-weight: 600;
     font-size: 0.875rem;
-    padding: var(--space-2);
+    padding: var(--space-3);
     border-radius: var(--radius-md);
     margin: 0 var(--space-1);
     transition: all 0.2s ease;
@@ -166,7 +166,7 @@ body, html {
 
 .navbar-nav .nav-link:hover,
 .navbar-nav .nav-link.active {
-    color: rgb(9, 233, 9) !important;
+    color: rgb(158, 79, 79) !important;
     transform: translateY(-1px);
 }
 
@@ -188,7 +188,8 @@ body, html {
 }
 
 .dropdown-menu {
-    background: rgb(255, 255, 255);
+    background: rgb(83, 218, 223);
+    color: white;
     border: none;
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-xl);
@@ -198,7 +199,7 @@ body, html {
 }
 
 .dropdown-item {
-    color: var(--primary-light) !important;
+    color: var(--gray-950) !important;
     padding: var(--space-2) var(--space-4);
     border-radius: var(--radius-sm);
     font-weight: 500;
@@ -1948,7 +1949,6 @@ main.container-fluid {
 .btn-register-modern {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
     background: linear-gradient(135deg, #f093fb, #f5576c);
     color: white;
     text-decoration: none;
@@ -1970,7 +1970,7 @@ main.container-fluid {
 }
 
 .feature-card-modern {
-p    background: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.9);
     border-radius: 16px;
     padding: var(--space-4);
     text-align: center;

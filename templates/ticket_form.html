@@ -84,7 +84,7 @@
                     </div>
 
                     <!-- Assign To -->
-                    {% if current_user.role in ['admin', 'intern'] %}
+                    {% if current_user.role == 'admin' %}
                     <div class="mb-3">
                         {{ form.assignees.label(class="form-label") }}
                         {{ form.assignees(class="form-control", multiple=True) }}

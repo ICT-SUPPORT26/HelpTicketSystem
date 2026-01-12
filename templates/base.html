@@ -42,6 +42,15 @@
                             <i class="fas fa-plus me-1"></i>New Ticket
                         </a>
                     </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-file-alt me-1"></i>Reports
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('reports_management') }}"><i class="fas fa-folder-open me-2"></i>Manage Reports</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('analytics_dashboard') }}"><i class="fas fa-chart-line me-2"></i>Analytics</a></li>
+                        </ul>
+                    </li>
                     {% if current_user.role == 'admin' %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -139,13 +148,19 @@
         </div>
     </nav>
     <main class="container-fluid my-4 px-3">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} fade-in" role="alert">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+        {# Allow pages to suppress flashes by adding ?no_flash=1 to the URL (used after report upload/delete) #}
+        {% if request.args.get('no_flash') != '1' %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} fade-in" role="alert">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        {% else %}
+            {# Consume flashed messages without rendering so they don't appear later on other pages. #}
+            {% with _ = get_flashed_messages(with_categories=true) %}{% endwith %}
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
     <footer class="footer-sky py-3 mt-5">
@@ -176,6 +191,36 @@
 
             // Log page load
             console.log('Page loaded successfully:', window.location.pathname);
+            {% if current_user.is_authenticated %}
+            // Auto-logout after inactivity (3 minutes)
+            (function() {
+                const IDLE_MS = 3 * 60 * 1000; // 3 minutes
+                let idleTimer;
+
+                function sendKeepAlive() {
+                    // Send a lightweight GET to refresh server-side last_activity
+                    fetch("{{ url_for('keepalive') }}", { method: 'GET', credentials: 'same-origin' })
+                        .catch(err => console.debug('Keepalive failed:', err));
+                }
+
+                function resetTimer() {
+                    clearTimeout(idleTimer);
+                    sendKeepAlive();
+                    idleTimer = setTimeout(function() {
+                        // No activity for IDLE_MS -> redirect to logout
+                        console.log('User idle timeout reached, redirecting to logout');
+                        window.location.href = "{{ url_for('logout') }}";
+                    }, IDLE_MS);
+                }
+
+                ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(function(evt) {
+                    window.addEventListener(evt, resetTimer, true);
+                });
+
+                // Start timer on initial load
+                resetTimer();
+            })();
+            {% endif %}
         });
     </script>
     {% block scripts %}{% endblock %}

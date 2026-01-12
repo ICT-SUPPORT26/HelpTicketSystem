@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="mb-0">
+                <i class="fas fa-file-upload"></i> Reports Management
+            </h1>
+            <small class="text-muted">Upload, organize, and manage team reports</small>
+        </div>
+        <div class="col-md-4 text-end">
+            {% if current_user.role in ['admin', 'intern'] %}
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadReportModal">
+                <i class="fas fa-cloud-upload-alt"></i> Upload Report
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    {% if current_user.role in ['admin', 'intern'] %}
+    <div class="modal fade" id="uploadReportModal" tabindex="-1">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Upload Report</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{{ url_for('upload_report') }}" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="file">Select File *</label>
+                            <div class="mb-3">
+                                <input type="file" class="form-control" id="file" name="file" required>
+                            </div>
+                            <small class="text-muted">Supported: PDF, CSV, Excel, Word, PowerPoint, Images, Text</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="category">Category *</label>
+                            <select class="form-control" id="category" name="category" required>
+                                <option value="">Select Category...</option>
+                                {% for cat in system_categories %}
+                                <option value="{{ cat }}">{{ cat|upper }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Select a system category for this report</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload"></i> Upload
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="fas fa-filter"></i> Filters</h6>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="row g-3" id="filterForm">
+                <div class="col-md-2">
+                    <label for="search" class="form-label">Search:</label>
+                    <input type="text" class="form-control" id="search" name="search" 
+                           value="{{ search_query }}" placeholder="Filename...">
+                </div>
+
+                <div class="col-md-2">
+                    <label for="category" class="form-label">Category:</label>
+                    <select class="form-control" id="category" name="category">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if cat == category_filter %}selected{% endif %}>
+                            {{ cat|upper }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if current_user.role == 'admin' %}
+                <div class="col-md-2">
+                    <label for="uploader" class="form-label">Uploader:</label>
+                    <select class="form-control" id="uploader" name="uploader">
+                        <option value="">All Users</option>
+                        {% for user in all_uploaders %}
+                        <option value="{{ user.id }}" {% if user.id == uploader_filter %}selected{% endif %}>
+                            {{ user.full_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <div class="col-md-2">
+                    <label for="date_from" class="form-label">From:</label>
+                    <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
+                </div>
+
+                <div class="col-md-2">
+                    <label for="date_to" class="form-label">To:</label>
+                    <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
+                </div>
+
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search"></i> Filter
+                    </button>
+                    <a href="{{ url_for('reports_management') }}" class="btn btn-secondary w-100">
+                        <i class="fas fa-redo"></i> Reset
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Reports List -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">
+                <i class="fas fa-list"></i> Reports ({{ reports.total }} total)
+            </h6>
+        </div>
+        <div class="card-body">
+            {% if reports.items %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Type</th>
+                            <th>Size</th>
+                            <th>Uploaded By</th>
+                            <th>Date</th>
+                            {% if current_user.role == 'admin' %}
+                            <th>Category</th>
+                            {% endif %}
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for report in reports.items %}
+                        <tr>
+                            <td>
+                                <i class="fas fa-file{% if report.file_type == 'pdf' %}-pdf{% elif report.file_type == 'excel' %}-excel{% elif report.file_type == 'word' %}-word{% elif report.file_type == 'ppt' %}-powerpoint{% elif report.file_type == 'csv' %}-csv{% elif report.file_type == 'image' %}-image{% else %}-o{% endif %}" style="color: #999; margin-right: 8px;"></i>
+                                <strong>{{ report.original_filename }}</strong>
+                                {% if report.description %}
+                                <br><small class="text-muted">{{ report.description }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge badge-{{ 'info' if report.file_type == 'pdf' else 'success' if report.file_type == 'excel' else 'primary' if report.file_type == 'word' else 'warning' if report.file_type == 'ppt' else 'secondary' }} text-dark">
+                                    {{ report.file_type|upper }}
+                                </span>
+                            </td>
+                            <td>
+                                {{ (report.file_size / 1024)|int }} KB
+                            </td>
+                            <td>{{ report.uploaded_by.full_name }}</td>
+                            <td>
+                                <small>{{ report.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                            </td>
+                            {% if current_user.role == 'admin' %}
+                            <td>
+                                {% if report.category %}
+                                <span class="badge badge-light text-dark">{{ report.category }}</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                            <td>
+                                <a href="{{ url_for('download_report', report_id=report.id) }}" 
+                                   class="btn btn-sm btn-outline-primary" title="Download">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                {% if current_user.role == 'admin' or report.uploaded_by_id == current_user.id %}
+                                                                <form method="POST" action="{{ url_for('delete_report', report_id=report.id) }}" 
+                                                                            style="display:inline;" 
+                                                                            onsubmit="return confirm('Delete this report?');">
+                                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if reports.pages > 1 %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if reports.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('reports_management', page=reports.prev_num, category=category_filter, uploader=uploader_filter, search=search_query, date_from=date_from, date_to=date_to) }}">
+                            Previous
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in reports.iter_pages() %}
+                        {% if page_num %}
+                            {% if page_num == reports.page %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                            {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('reports_management', page=page_num, category=category_filter, uploader=uploader_filter, search=search_query, date_from=date_from, date_to=date_to) }}">
+                                    {{ page_num }}
+                                </a>
+                            </li>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if reports.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('reports_management', page=reports.next_num, category=category_filter, uploader=uploader_filter, search=search_query, date_from=date_from, date_to=date_to) }}">
+                            Next
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No reports found. 
+                {% if current_user.role in ['admin', 'intern'] %}
+                <a href="#" data-bs-toggle="modal" data-bs-target="#uploadReportModal">Upload the first report</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- File input label update script -->
+<script>
+document.querySelector('#file').addEventListener('change', function(e) {
+    const fileName = e.target.files[0]?.name || 'Choose file...';
+    document.querySelector('.custom-file-label').textContent = fileName;
+});
+</script>
+
+<style>
+    .table-hover tbody tr:hover {
+        background-color: #f5f5f5;
+    }
+    .badge {
+        font-size: 0.85em;
+        padding: 0.4em 0.6em;
+    }
+    .custom-file-label::after {
+        content: "Browse";
+    }
+</style>
+{% endblock %}

@@ -40,7 +40,7 @@
                 </div>
                 <div class="mb-3">
                     <strong>Description:</strong>
-                    <div class="mt-2">{{ ticket.description|nl2br }}</div>
+                    <div class="mt-2">{{ ticket.description}}</div>
                 </div>
                 
                 {% if ticket.attachments %}
@@ -249,6 +249,14 @@
                 <a href="{{ url_for('tickets_list') }}" class="btn btn-outline-primary w-100">
                     <i class="fas fa-list me-2"></i>Back to Tickets
                 </a>
+                {% if can_escalate %}
+                <form method="POST" action="{{ url_for('escalate_ticket', id=ticket.id) }}" class="mt-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Escalate this ticket to the admins?')">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Escalate to Admin
+                    </button>
+                </form>
+                {% endif %}
             </div>
         </div>
         

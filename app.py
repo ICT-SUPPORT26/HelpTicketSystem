@@ -1,11 +1,15 @@
 # app.py
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import logging
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf.csrf import CSRFProtect
 from extensions import db, login_manager, mail
-from datetime import datetime
+from datetime import datetime, timedelta
+from flask import session, redirect, url_for, flash
+from flask_login import logout_user, current_user
 
 
 # Configure logging
@@ -51,9 +55,44 @@ def load_user(user_id):
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# Auto logout after inactivity: use a timedelta for the session lifetime and
+# track last activity timestamp in the session to enforce inactivity logout.
+# NOTE: we set a 3 minute inactivity timeout per user's request.
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=3)
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+
 @app.context_processor
 def inject_now():
     return {'now': datetime.utcnow}
 
+
+@app.before_request
+def enforce_session_timeout():
+    # Only enforce inactivity timeout for authenticated users. We store a
+    # `last_activity` ISO timestamp in the session and compare it to the
+    # configured `PERMANENT_SESSION_LIFETIME` to determine expiry.
+    if current_user.is_authenticated:
+        now = datetime.utcnow()
+        last = session.get('last_activity')
+        if last:
+            try:
+                last_dt = datetime.fromisoformat(last)
+            except Exception:
+                last_dt = now
+
+            if now - last_dt > app.permanent_session_lifetime:
+                # expire session
+                logout_user()
+                session.pop('last_activity', None)
+                flash("Session expired due to inactivity. Please log in again.", "warning")
+                return redirect(url_for('login'))
+
+        # Update last_activity timestamp for every authenticated request
+        session['last_activity'] = now.isoformat()
+
 # Import routes so they attach to app
 import routes
+
+# Register CLI commands for testing
+from cli_commands import cli as sms_cli
+app.cli.add_command(sms_cli, name='sms')

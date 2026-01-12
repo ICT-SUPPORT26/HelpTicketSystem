@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta
-from flask import render_template, flash, redirect, url_for, request, send_from_directory, abort, jsonify
+from flask import render_template, flash, redirect, url_for, request, send_from_directory, abort, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -10,9 +10,11 @@ import pytz
 import uuid
 from sqlalchemy.orm import joinedload
 from flask_caching import Cache
+#SMS service
+from sms_service import send_sms
 
 from app import app, db, mail
-from models import User, Ticket, Comment, Attachment, Category, Notification, NotificationSettings
+from models import User, Ticket, Comment, Attachment, Category, Notification, NotificationSettings, ReportFile
 from forms import LoginForm, RegistrationForm, TicketForm, CommentForm, TicketUpdateForm, UserManagementForm, CategoryForm, AdminUserForm, NotificationSettingsForm, PasswordChangeForm, UserStatusForm
 from utils import send_notification_email, get_dashboard_stats
 from notification_utils import NotificationManager
@@ -105,6 +107,15 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('index'))
+
+
+@app.route('/keepalive')
+@login_required
+def keepalive():
+    # Lightweight endpoint to refresh session last_activity from the client
+    session.permanent = True
+    session['last_activity'] = datetime.utcnow().isoformat()
+    return jsonify({'ok': True})
 
 @app.route('/verify/<token>')
 def verify_email(token):
@@ -212,7 +223,10 @@ def dashboard():
     # Show recent tickets where the user is an assignee (for both users and interns)
     recent_tickets = Ticket.query.join(Ticket.assignees).filter(User.id == current_user.id).order_by(desc(Ticket.updated_at)).limit(5).all()
 
-    return render_template('dashboard.html', stats=stats, recent_tickets=recent_tickets)
+    # Get system categories for reports upload
+    system_categories = [c.name for c in Category.query.all()]
+
+    return render_template('dashboard.html', stats=stats, recent_tickets=recent_tickets, system_categories=system_categories)
 
 @app.route('/admin_dashboard')
 @login_required
@@ -240,6 +254,7 @@ def admin_dashboard():
 
     # Get categories for dashboard display
     categories = Category.query.order_by(Category.name).all()
+    system_categories = [c.name for c in categories]
     
     # Import CategoryForm for the modal
     from forms import CategoryForm
@@ -251,6 +266,7 @@ def admin_dashboard():
                          user_stats=user_stats,
                          pending_interns_count=pending_interns_count,
                          categories=categories,
+                         system_categories=system_categories,
                          category_form=category_form)
 
 @app.route('/tickets')
@@ -266,17 +282,27 @@ def tickets_list():
     if current_user.role == 'user':
         query = query.filter_by(created_by_id=current_user.id)
     elif current_user.role == 'intern':
-        # For interns, if status is 'assigned', show all assigned tickets
-        if status_filter == 'assigned':
-            query = query.filter(Ticket.assignees.any(id=current_user.id))
-            status_filter = ''  # Clear status filter since we're showing all assigned tickets
-        else:
-            query = query.filter(Ticket.assignees.any(id=current_user.id))
+        # By default interns see tickets they created OR are assigned to
+        from sqlalchemy import or_
+        query = query.filter(
+            or_(
+                Ticket.created_by_id == current_user.id,
+                Ticket.assignees.any(id=current_user.id)
+            )
+        )
     # Admin can see all tickets
 
     # Apply filters
     if status_filter:
-        query = query.filter_by(status=status_filter)
+        # Support a special pseudo-status 'assigned' which means "tickets assigned to the current user".
+        if status_filter == 'assigned':
+            # For interns show tickets assigned to them; for admins show tickets with any assignee
+            if current_user.role == 'intern':
+                query = Ticket.query.filter(Ticket.assignees.any(id=current_user.id))
+            else:
+                query = query.filter(Ticket.assignees.any())
+        else:
+            query = query.filter_by(status=status_filter)
     if priority_filter:
         query = query.filter_by(priority=priority_filter)
 
@@ -289,11 +315,26 @@ def tickets_list():
 @app.route('/ticket/new', methods=['GET', 'POST'])
 @login_required
 def new_ticket():
+    from models import User
+    from sms_service import send_sms
+    
     form = TicketForm()
 
     if form.validate_on_submit():
-        # Get selected assignees
-        assignee_ids = form.assignees.data or []
+        # Get selected assignees Users and interns submit unassigned; only admins can assign on creation.
+        if current_user.role == 'user':
+            # Users always submit unassigned - admin will assign later
+            assignee_ids = []
+        elif current_user.role == 'intern':
+            # Intern-created tickets are auto-assigned to an active admin so they get handled promptly.
+            admin = User.query.filter_by(role='admin', is_active=True).order_by(User.id).first()
+            if admin:
+                assignee_ids = [admin.id]
+            else:
+                # Fallback to unassigned if no active admin found
+                assignee_ids = []
+        else:  # admin
+            assignee_ids = form.assignees.data or []
         # Priority-based limits
         max_assignees = 1
         if form.priority.data == 'urgent':
@@ -353,6 +394,24 @@ def new_ticket():
         db.session.add(ticket)
         db.session.flush()
 
+        from sms_service import send_sms
+        # Notify the creator via SMS
+        creator_phone = getattr(current_user, 'phone_number', None)
+        if creator_phone:
+            send_sms(
+                creator_phone,
+                f"Your ticket #{ticket.id} has been created successfully. Status: {ticket.status}")
+
+        # If ticket is unassigned (user role), notify all active admins via SMS
+        if current_user.role == 'user' and not assignee_ids:
+            admins = User.query.filter_by(role='admin', is_active=True).all()
+            for admin in admins:
+                admin_phone = getattr(admin, 'phone_number', None)
+                if admin_phone:
+                    send_sms(
+                        admin_phone,
+                        f"New unassigned ticket #{ticket.id} from {current_user.full_name}. Priority: {ticket.priority}. Please review.")
+
         # Assign users
         for uid in assignee_ids:
             user = User.query.get(uid)
@@ -386,6 +445,17 @@ def new_ticket():
 
         db.session.commit()
 
+        # Note: assignee_ids may be a list; notify each assignee if present
+        if assignee_ids:
+            for aid in assignee_ids:
+                assignee = User.query.get(aid)
+                assignee_phone = getattr(assignee, 'phone_number', None) if assignee else None
+                if assignee and assignee_phone:
+                    send_sms(
+                        assignee_phone,
+                        f"You have been assigned ticket #{ticket.id}. Please review it."
+                    )
+
         # Send notifications using the new system
         print(f"DEBUG: About to send notifications for new ticket {ticket.id}")
         NotificationManager.notify_new_ticket(ticket)
@@ -417,8 +487,11 @@ def ticket_detail(id):
     comment_form = CommentForm()
     update_form = TicketUpdateForm(user_role=current_user.role, current_status=ticket.status, obj=ticket) if current_user.role in ['admin', 'intern'] else None
 
+    # Check if intern can escalate this ticket (created by them or assigned to them)
+    can_escalate = current_user.role == 'intern' and (ticket.created_by_id == current_user.id or current_user.id in [u.id for u in ticket.assignees]) and ticket.status not in ['closed']
+
     return render_template('ticket_detail.html', ticket=ticket, comments=comments, 
-                         comment_form=comment_form, update_form=update_form)
+                         comment_form=comment_form, update_form=update_form, can_escalate=can_escalate)
 
 @app.route('/ticket/<int:id>/comment', methods=['POST'])
 @login_required
@@ -454,6 +527,76 @@ def add_comment(id):
 
         flash('Comment added successfully', 'success')
 
+    return redirect(url_for('ticket_detail', id=id))
+
+
+@app.route('/ticket/<int:id>/escalate', methods=['POST'])
+@login_required
+def escalate_ticket(id):
+    """Allow interns to escalate a ticket to all active admins. Creates in-app notifications for admins."""
+    ticket = Ticket.query.get_or_404(id)
+
+    # Permission: only interns can escalate, and only for tickets they created or are assigned to
+    if current_user.role != 'intern':
+        abort(403)
+    if not (ticket.created_by_id == current_user.id or current_user.id in [u.id for u in ticket.assignees]):
+        abort(403)
+
+    # Notify all active admins
+    admins = User.query.filter_by(role='admin', is_active=True).all()
+    if not admins:
+        flash('No active admins are available to receive this escalation. Please try again later.', 'warning')
+        return redirect(url_for('ticket_detail', id=id))
+
+    for admin in admins:
+        try:
+            NotificationManager.create_notification(
+                user_id=admin.id,
+                ticket_id=ticket.id,
+                notification_type='escalation',
+                title=f'Escalation: Ticket #{ticket.id}',
+                message=f'Ticket #{ticket.id} has been escalated by {current_user.full_name}.\n\nLocation: {ticket.location}\nPriority: {ticket.priority}\nDescription: {ticket.description[:200]}'
+            )
+        except Exception as e:
+            print(f"Error creating escalation notification for admin {admin.id}: {e}")
+
+    # Send escalation emails to active admins if mail is configured
+    try:
+        admin_emails = [a.email for a in admins if a.email]
+        if admin_emails and app.config.get('MAIL_USERNAME') and app.config.get('MAIL_PASSWORD'):
+            # Build priority-highlighted subject with emoji
+            priority_prefix = "🔴 URGENT:" if ticket.priority == 'urgent' else "🟠 HIGH:" if ticket.priority == 'high' else "🟡 MEDIUM:" if ticket.priority == 'medium' else "🟢 LOW:"
+            subject = f"{priority_prefix} Ticket #{ticket.id} Escalated - {ticket.location}"
+            
+            ticket_url = url_for('ticket_detail', id=ticket.id, _external=True)
+            
+            # Render HTML email template
+            html_body = render_template('email_escalation.html',
+                ticket_id=ticket.id,
+                location=ticket.location,
+                priority=ticket.priority,
+                description=ticket.description,
+                escalated_by=current_user.full_name,
+                ticket_url=ticket_url
+            )
+            
+            # Plain text fallback
+            text_body = (
+                f"Ticket #{ticket.id} has been escalated by {current_user.full_name}.\n\n"
+                f"Location: {ticket.location}\nPriority: {ticket.priority}\n\n"
+                f"Description:\n{ticket.description}\n\n"
+                f"View ticket: {ticket_url}\n\n"
+                "Please log in to the ICT Helpdesk to manage this ticket."
+            )
+            
+            msg = Message(subject, recipients=admin_emails)
+            msg.body = text_body
+            msg.html = html_body
+            mail.send(msg)
+    except Exception as e:
+        print(f"Error sending escalation emails: {e}")
+
+    flash('Ticket escalated to admins successfully. An admin will review it shortly.', 'success')
     return redirect(url_for('ticket_detail', id=id))
 
 @app.route('/ticket/<int:id>/update', methods=['POST'])
@@ -512,8 +655,22 @@ def update_ticket(id):
                 if active_task_count >= 1:
                     flash('This technician/intern already has an active task assigned. Only 1 active task is allowed at a time.', 'danger')
                     return render_template('ticket_detail.html', ticket=ticket, comments=Comment.query.filter_by(ticket_id=id).all(), comment_form=CommentForm(), update_form=form)
-            # Update assignees
+            
+            # Update assignees and track newly assigned
+            old_assignee_ids = set([u.id for u in ticket.assignees])
             ticket.assignees = [User.query.get(uid) for uid in new_assignee_ids if User.query.get(uid)]
+            new_assigned_set = set(new_assignee_ids)
+            
+            # Send SMS to newly assigned staff (those not previously assigned)
+            newly_assigned_ids = new_assigned_set - old_assignee_ids
+            from sms_service import send_sms
+            for newly_assigned_id in newly_assigned_ids:
+                assignee = User.query.get(newly_assigned_id)
+                assignee_phone = getattr(assignee, 'phone_number', None) if assignee else None
+                if assignee and assignee_phone:
+                    send_sms(
+                        assignee_phone,
+                        f"You have been assigned ticket #{ticket.id} - {ticket.location}. Priority: {ticket.priority}. Please review.")
 
             # Set due_date if assigned and not already set
             if new_assignee_ids and not ticket.due_date:
@@ -661,6 +818,14 @@ def close_ticket(id):
     )
     db.session.add(history)
     db.session.commit()
+
+    # Send SMS to ticket creator when ticket is closed/resolved
+    creator_phone = getattr(ticket.creator, 'phone_number', None) if ticket.creator else None
+    if creator_phone:
+        from sms_service import send_sms
+        send_sms(
+            creator_phone,
+            f"Your ticket #{ticket.id} - {ticket.location} has been resolved. Status: Closed.")
 
     # Send notifications using the new system
     NotificationManager.notify_ticket_closed(ticket, current_user)
@@ -1124,12 +1289,17 @@ def create_user():
             flash('Email already registered', 'danger')
             return redirect(url_for('user_management'))
 
+        # Auto-verify admin accounts
+        is_verified = True if form.role.data == 'admin' else False
+        verification_token = None if form.role.data == 'admin' else str(uuid.uuid4())
         user = User(
             username=form.username.data,
             email=form.email.data,
             full_name=form.full_name.data,
             password_hash=generate_password_hash(form.password.data),
-            role=form.role.data
+            role=form.role.data,
+            is_verified=is_verified,
+            verification_token=verification_token
         )
         db.session.add(user)
         db.session.commit()
@@ -1688,4 +1858,247 @@ def get_current_timestamp():
 @login_required
 def get_reports_data():
     task = generate_report_data.apply_async()
-    return jsonify({"task_id": task.id})
+    return jsonify({"task_id": task.id})# Reports Management Routes
+# Add these routes to routes.py at the end of the file
+
+def get_file_category(filename, content_type):
+    """Determine file category based on extension and content type."""
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    content_type_lower = (content_type or '').lower()
+
+    # Map extensions and MIME types to categories
+    if ext in ['pdf'] or 'pdf' in content_type_lower:
+        return 'pdf'
+    elif ext in ['csv'] or 'csv' in content_type_lower:
+        return 'csv'
+    elif ext in ['xlsx', 'xls'] or 'spreadsheet' in content_type_lower or 'excel' in content_type_lower:
+        return 'excel'
+    elif ext in ['docx', 'doc'] or 'word' in content_type_lower:
+        return 'word'
+    elif ext in ['pptx', 'ppt'] or 'presentation' in content_type_lower:
+        return 'ppt'
+    elif ext in ['txt'] or 'text' in content_type_lower:
+        return 'text'
+    elif ext in ['jpg', 'jpeg', 'png', 'gif', 'bmp'] or 'image' in content_type_lower:
+        return 'image'
+    else:
+        return 'other'
+
+
+@app.route('/reports-management')
+@login_required
+def reports_management():
+    """Main reports management page (accessible to admin and interns)."""
+    if current_user.role not in ['admin', 'intern']:
+        abort(403)
+
+    page = request.args.get('page', 1, type=int)
+    category_filter = request.args.get('category', '')
+    uploader_filter = request.args.get('uploader', type=int)
+    search_query = request.args.get('search', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+
+    # Build base query
+    query = ReportFile.query
+
+    # Filter by role: admins see all, interns/users see only their own and team reports
+    if current_user.role == 'admin':
+        # Admin sees all reports
+        pass
+    elif current_user.role == 'intern':
+        # Intern sees only their own reports
+        query = query.filter_by(uploaded_by_id=current_user.id)
+
+    # Apply filters
+    if category_filter:
+        query = query.filter_by(file_type=category_filter)
+    if uploader_filter and current_user.role == 'admin':
+        query = query.filter_by(uploaded_by_id=uploader_filter)
+    if search_query:
+        query = query.filter(ReportFile.original_filename.ilike(f'%{search_query}%'))
+    if date_from:
+        try:
+            start_date = datetime.strptime(date_from, '%Y-%m-%d')
+            query = query.filter(ReportFile.uploaded_at >= start_date)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            end_date = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(ReportFile.uploaded_at < end_date)
+        except ValueError:
+            pass
+
+    # Order by most recent first
+    reports = query.order_by(ReportFile.uploaded_at.desc()).paginate(
+        page=page, per_page=15, error_out=False
+    )
+
+    # Get unique categories and uploaders for filter dropdowns
+    all_categories = db.session.query(ReportFile.file_type).distinct().all()
+    file_categories = [c[0] for c in all_categories if c[0]]
+
+    # Get system categories from Category model
+    system_categories = [c.name for c in Category.query.all()]
+
+    all_uploaders = []
+    if current_user.role == 'admin':
+        all_uploaders = User.query.filter(User.role.in_(['admin', 'intern'])).order_by(User.full_name).all()
+
+    return render_template('reports_management.html',
+                         reports=reports,
+                         categories=file_categories,
+                         system_categories=system_categories,
+                         all_uploaders=all_uploaders,
+                         category_filter=category_filter,
+                         uploader_filter=uploader_filter,
+                         search_query=search_query,
+                         date_from=date_from,
+                         date_to=date_to)
+
+
+@app.route('/report/upload', methods=['POST'])
+@login_required
+def upload_report():
+    """Upload a new report file."""
+    if current_user.role not in ['admin', 'intern']:
+        abort(403)
+
+    if 'file' not in request.files:
+        flash('No file part in request', 'danger')
+        return redirect(url_for('reports_management'))
+
+    file = request.files['file']
+    if file.filename == '':
+        flash('No file selected', 'danger')
+        return redirect(url_for('reports_management'))
+
+    category = request.form.get('category', '')
+    
+    if not category:
+        flash('Category is required', 'danger')
+        return redirect(url_for('reports_management'))
+
+    try:
+        filename = secure_filename(file.filename)
+        if not filename:
+            flash('Invalid filename', 'danger')
+            return redirect(url_for('reports_management'))
+
+        # Generate unique filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        unique_filename = f"{timestamp}_{filename}"
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+
+        # Save file
+        file.save(file_path)
+        file_size = os.path.getsize(file_path)
+
+        # Determine file type (pdf, csv, excel, word, ppt, image, text, other)
+        file_type = get_file_category(filename, file.content_type)
+
+        # Create report record
+        report = ReportFile(
+            filename=unique_filename,
+            original_filename=filename,
+            file_size=file_size,
+            content_type=file.content_type or 'application/octet-stream',
+            file_type=file_type,
+            category=category,
+            uploaded_by_id=current_user.id
+        )
+        db.session.add(report)
+        db.session.commit()
+
+        # Success message suppressed to avoid popup after upload
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error uploading file: {str(e)}', 'danger')
+
+    # Redirect back to the reports management page but suppress the flash popup there
+    return redirect(url_for('reports_management', no_flash=1))
+
+
+@app.route('/report/<int:report_id>/download')
+@login_required
+def download_report(report_id):
+    """Download a report file."""
+    report = ReportFile.query.get_or_404(report_id)
+
+    # Permission check
+    if current_user.role == 'intern' and report.uploaded_by_id != current_user.id:
+        abort(403)
+
+    # Log download
+    print(f"DEBUG: User {current_user.username} downloading report {report.id}: {report.original_filename}")
+
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], report.filename, as_attachment=True, download_name=report.original_filename)
+    except Exception as e:
+        flash(f'Error downloading file: {str(e)}', 'danger')
+        return redirect(url_for('reports_management'))
+
+
+@app.route('/report/<int:report_id>/delete', methods=['POST'])
+@login_required
+def delete_report(report_id):
+    """Delete a report file (admin only or by uploader)."""
+    report = ReportFile.query.get_or_404(report_id)
+
+    # Permission check: only admin or the uploader can delete
+    if current_user.role != 'admin' and report.uploaded_by_id != current_user.id:
+        abort(403)
+
+    try:
+        # Delete file from disk
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], report.filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        # Delete database record
+        db.session.delete(report)
+        db.session.commit()
+
+        # Success message suppressed to avoid popup after delete
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting report: {str(e)}', 'danger')
+
+    # Redirect back to the reports management page but suppress the flash popup there
+    return redirect(url_for('reports_management', no_flash=1))
+
+
+@app.route('/api/reports/stats')
+@login_required
+def api_reports_stats():
+    """Get statistics about uploaded reports (for admin dashboard)."""
+    if current_user.role != 'admin':
+        abort(403)
+
+    # Total reports
+    total_reports = ReportFile.query.count()
+
+    # Reports by file type
+    category_stats = db.session.query(
+        ReportFile.file_type,
+        func.count(ReportFile.id).label('count')
+    ).group_by(ReportFile.file_type).all()
+
+    # Reports by uploader
+    uploader_stats = db.session.query(
+        User.full_name,
+        func.count(ReportFile.id).label('count')
+    ).join(ReportFile, User.id == ReportFile.uploaded_by_id).group_by(User.id, User.full_name).all()
+
+    # Total file size
+    total_size = db.session.query(func.sum(ReportFile.file_size)).scalar() or 0
+
+    return jsonify({
+        'total_reports': total_reports,
+        'total_size_mb': round(total_size / (1024 * 1024), 2),
+        'category_stats': [{'category': c[0], 'count': c[1]} for c in category_stats],
+        'uploader_stats': [{'uploader': u[0], 'count': u[1]} for u in uploader_stats]
+    })

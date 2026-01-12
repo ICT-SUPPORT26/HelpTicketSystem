@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .email-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .email-header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .email-header p {
+            margin: 5px 0 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .email-body {
+            padding: 30px 20px;
+        }
+        .alert-box {
+            padding: 15px;
+            border-left: 5px solid;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            background-color: #fef3cd;
+            border-color: #ffc107;
+        }
+        .alert-box.urgent {
+            background-color: #f8d7da;
+            border-color: #dc3545;
+        }
+        .alert-box.high {
+            background-color: #fff3cd;
+            border-color: #ffc107;
+        }
+        .alert-box.medium {
+            background-color: #d1ecf1;
+            border-color: #17a2b8;
+        }
+        .alert-box.low {
+            background-color: #d4edda;
+            border-color: #28a745;
+        }
+        .ticket-details {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #495057;
+            min-width: 100px;
+        }
+        .detail-value {
+            color: #212529;
+            text-align: right;
+            flex: 1;
+        }
+        .priority-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .priority-badge.urgent {
+            background-color: #dc3545;
+            color: white;
+        }
+        .priority-badge.high {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .priority-badge.medium {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .priority-badge.low {
+            background-color: #28a745;
+            color: white;
+        }
+        .description-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        .description-box h3 {
+            margin-top: 0;
+            color: #667eea;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .description-box p {
+            margin: 0;
+            color: #495057;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+        .cta-button {
+            display: inline-block;
+            background-color: #667eea;
+            color: white;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        .cta-button:hover {
+            background-color: #5568d3;
+        }
+        .escalation-info {
+            background-color: #e7f3ff;
+            padding: 12px;
+            border-radius: 4px;
+            border-left: 4px solid #2196F3;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #1565c0;
+        }
+        .email-footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+        }
+        .email-footer p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <h1>🔔 Ticket Escalation</h1>
+            <p>A ticket has been escalated and requires your immediate attention</p>
+        </div>
+
+        <div class="email-body">
+            <!-- Escalation Alert -->
+            <div class="escalation-info">
+                <strong>{{ escalated_by }}</strong> has escalated Ticket #{{ ticket_id }} for immediate review.
+            </div>
+
+            <!-- Priority Badge Alert -->
+            <div class="alert-box {{ priority }}">
+                <strong>Priority Level:</strong> <span class="priority-badge {{ priority }}">{{ priority }}</span>
+            </div>
+
+            <!-- Ticket Details -->
+            <div class="ticket-details">
+                <div class="detail-row">
+                    <span class="detail-label">Ticket ID:</span>
+                    <span class="detail-value">#{{ ticket_id }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Location:</span>
+                    <span class="detail-value">{{ location }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Priority:</span>
+                    <span class="detail-value"><span class="priority-badge {{ priority }}">{{ priority }}</span></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Escalated by:</span>
+                    <span class="detail-value">{{ escalated_by }}</span>
+                </div>
+            </div>
+
+            <!-- Description -->
+            <div class="description-box">
+                <h3>Description</h3>
+                <p>{{ description }}</p>
+            </div>
+
+            <!-- Call to Action -->
+            <center>
+                <a href="{{ ticket_url }}" class="cta-button">View & Manage Ticket</a>
+            </center>
+
+            <!-- Additional Info -->
+            <p style="color: #6c757d; font-size: 13px; margin-top: 20px;">
+                Please log in to the ICT Helpdesk system to manage this ticket and coordinate with the team.
+            </p>
+        </div>
+
+        <div class="email-footer">
+            <p><strong>ICT Helpdesk System</strong></p>
+            <p>This is an automated notification. Please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>

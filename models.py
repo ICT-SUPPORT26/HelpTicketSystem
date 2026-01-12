@@ -27,6 +27,19 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
+    @property
+    def phone(self):
+        """Backward-compatible alias for `phone_number`.
+
+        Some code references `user.phone` — provide a safe property so both
+        names work. Returns `None` when `phone_number` is not set.
+        """
+        return self.phone_number
+
+    @phone.setter
+    def phone(self, value):
+        self.phone_number = value
+
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False, index=True)
@@ -162,3 +175,25 @@ class NotificationSettings(db.Model):
 
     def __repr__(self):
         return f'<NotificationSettings for User {self.user_id}>'
+
+
+class ReportFile(db.Model):
+    """Model for storing uploaded reports/documents."""
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_size = db.Column(db.Integer, nullable=False)  # in bytes
+    content_type = db.Column(db.String(100), nullable=False)
+    # store the file's mime/type classification (pdf, csv, excel, word, ppt, image, text, other)
+    # map the DB column name to `type` so the database shows the requested column name.
+    file_type = db.Column('type', db.String(50), nullable=False)  # pdf, csv, excel, word, ppt, other, etc.
+    description = db.Column(Text, nullable=True)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    category = db.Column(db.String(100), nullable=True)  # System category (network, hardware, software, email, etc.)
+
+    # Relationships
+    uploaded_by = db.relationship('User', backref='uploaded_reports')
+
+    def __repr__(self):
+        return f'<ReportFile {self.id}: {self.original_filename}>'
