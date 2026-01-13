@@ -5,14 +5,6 @@ from app import app  # Import your actual app with routes and models
 if __name__ == "__main__":
     app.run(debug=True)
 
-
-
-
-
-
-
-
-
 #from pyngrok import ngrok
 #if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
  #   try:        
