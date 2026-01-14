@@ -126,7 +126,7 @@ with app.app_context():
             username="dctraining",
             full_name="Dctraining",
             email="intern@helpticketsystem.com",
-            password_hash=generate_password_hash("intern123"),  # default password
+            password_hash=generate_password_hash("Dctraining2023"),  # default password
             role="intern",
             is_active=True,
             is_verified=True,
@@ -134,7 +134,7 @@ with app.app_context():
         )
         db.session.add(intern)
         db.session.commit()
-        logging.info("Default intern account created: username='dctraining', password='intern123'")
+        logging.info("Default intern account created: username='dctraining', password='Dctraining2023'")
     else:
         logging.info("Default intern already exists")
 
