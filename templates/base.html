@@ -163,6 +163,9 @@
         {% endif %}
         {% block content %}{% endblock %}
     </main>
+
+    <!-- Toast container for transient notifications (appears top-right) -->
+    <div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1080;"></div>
     <footer class="footer-sky py-3 mt-5">
         <div class="container text-center">
             <span>&copy; {{ datetime.utcnow().year }} University of Nairobi ICT Helpdesk</span>
@@ -191,10 +194,62 @@
 
             // Log page load
             console.log('Page loaded successfully:', window.location.pathname);
+
+            // Convert any flashed alerts into Bootstrap toasts so they auto-hide
+            (function() {
+                try {
+                    // If no Bootstrap, skip gracefully
+                    if (typeof bootstrap === 'undefined') return;
+
+                    const flashAlerts = document.querySelectorAll('main .alert');
+                    if (!flashAlerts || flashAlerts.length === 0) return;
+
+                    const tc = document.getElementById('toast-container') || (function(){
+                        const d = document.createElement('div');
+                        d.id = 'toast-container';
+                        d.className = 'position-fixed top-0 end-0 p-3';
+                        d.style.zIndex = 1080;
+                        document.body.appendChild(d);
+                        return d;
+                    })();
+
+                    flashAlerts.forEach(alert => {
+                        // Determine category to style toast background
+                        let category = 'info';
+                        alert.classList.forEach(c => { if (c.startsWith('alert-')) category = c.replace('alert-',''); });
+
+                        const messageHtml = alert.innerHTML;
+                        const toast = document.createElement('div');
+                        toast.className = 'toast align-items-center text-bg-' + (['danger','warning','success','info'].includes(category) ? category : 'info');
+                        toast.setAttribute('role','alert');
+                        toast.setAttribute('aria-live','assertive');
+                        toast.setAttribute('aria-atomic','true');
+                        toast.innerHTML = `<div class="d-flex"><div class="toast-body">${messageHtml}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
+                        tc.appendChild(toast);
+
+                        // Show toast and auto-hide using configured delay
+                        try {
+                            const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: TOAST_AUTOHIDE_MS });
+                            bsToast.show();
+                        } catch (e) {
+                            console.debug('Toast creation failed', e);
+                        }
+
+                        // Remove original alert from the DOM
+                        alert.remove();
+                    });
+                } catch (e) {
+                    console.debug('Flash->toast conversion failed', e);
+                }
+            })();
+
             {% if current_user.is_authenticated %}
             // Auto-logout after inactivity (3 minutes)
             (function() {
                 const IDLE_MS = 3 * 60 * 1000; // 3 minutes
+                const TOAST_AUTOHIDE_MS = {{ TOAST_AUTOCLOSE_MS }}; // ms
+                const SESSION_EXPIRY_TOAST_CLASS = "{{ SESSION_EXPIRY_TOAST_CLASS }}";
+                const SESSION_EXPIRY_REDIRECT_MS = {{ SESSION_EXPIRY_REDIRECT_MS }}; // ms after showing toast to redirect
                 let idleTimer;
 
                 function sendKeepAlive() {
@@ -203,13 +258,43 @@
                         .catch(err => console.debug('Keepalive failed:', err));
                 }
 
+                function _showSessionExpiryToastAndRedirect() {
+                    // Build a transient toast informing user of automatic logout
+                    try {
+                        const tc = document.getElementById('toast-container');
+                        if (!tc) return window.location.href = "{{ url_for('logout') }}"; // fallback
+
+                        const messageHtml = 'You have been logged out due to inactivity.';
+                        const toast = document.createElement('div');
+                        // Use configured class for visibility (e.g., 'text-bg-warning')
+                        toast.className = `toast align-items-center ${SESSION_EXPIRY_TOAST_CLASS}`;
+                        toast.setAttribute('role','alert');
+                        toast.setAttribute('aria-live','assertive');
+                        toast.setAttribute('aria-atomic','true');
+                        toast.innerHTML = `<div class="d-flex"><div class="toast-body">${messageHtml}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
+
+                        tc.appendChild(toast);
+                        const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: TOAST_AUTOHIDE_MS });
+                        bsToast.show();
+
+                        // After a short delay (configurable), redirect to logout to complete server-side session clear.
+                        setTimeout(function() {
+                            window.location.href = "{{ url_for('logout') }}";
+                        }, SESSION_EXPIRY_REDIRECT_MS);
+
+                    } catch (e) {
+                        console.debug('Session expiry toast failed, redirecting to logout directly.', e);
+                        window.location.href = "{{ url_for('logout') }}";
+                    }
+                }
+
                 function resetTimer() {
                     clearTimeout(idleTimer);
                     sendKeepAlive();
                     idleTimer = setTimeout(function() {
-                        // No activity for IDLE_MS -> redirect to logout
-                        console.log('User idle timeout reached, redirecting to logout');
-                        window.location.href = "{{ url_for('logout') }}";
+                        // No activity for IDLE_MS -> show session-expiry toast then redirect
+                        console.log('User idle timeout reached, showing expiry toast then redirecting to logout');
+                        _showSessionExpiryToastAndRedirect();
                     }, IDLE_MS);
                 }
 

@@ -37,9 +37,14 @@ A modern web-based helpdesk ticketing system for ICT support, built with Flask, 
    pip install flask flask-login flask-mail flask-wtf sqlalchemy pymysql wtforms pytz
    ```
 
-3. **Configure MySQL**
-   - Create a database named `helpticket_system`.
-   - Update the `SQLALCHEMY_DATABASE_URI` in `app.py` if needed.
+3. **Configure database**
+   - Create a database named `helpticket_system` (or use your own database name).
+   - You can provide a full SQLAlchemy URL via `DATABASE_URL`, for example:
+     - MySQL: `mysql+pymysql://user:password@127.0.0.1:3306/helpticket_system`
+     - PostgreSQL: `postgresql+psycopg2://user:password@127.0.0.1:5432/helpticket_system`
+   - Or provide components (the app will construct the URL): `DB_ENGINE` (`mysql` or `postgres`), `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`.
+     - If `DB_NAME` is not set, the app defaults to `helpticket_system` for MySQL and `helpticket_system_pg` for PostgreSQL.
+   - Update the `SQLALCHEMY_DATABASE_URI` in `app.py` only if you need to hard-code a value.
 
 4. **Set environment variables (optional, for mail)**
    - `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USE_TLS`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_DEFAULT_SENDER`
