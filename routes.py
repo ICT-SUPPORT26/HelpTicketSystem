@@ -25,41 +25,29 @@ cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache'})
 
 @app.route('/')
 def index():
+    # Render login form (Flask-WTF) so a CSRF token is generated and stored in the session
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    return render_template('index.html')
+    form = LoginForm()
+    return render_template('index.html', form=form)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Use Flask-WTF LoginForm (ensures CSRF token validation)
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
 
-    # Handle form submission from index page
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        remember_me = request.form.get('remember_me') == 'y'
+    form = LoginForm()
 
-        if username and password:
-            # Admin login: only allow username '215030' and password 'admin123'
-            if username == '215030':
-                if password == 'admin123':
-                    user = User.query.filter_by(username='215030').first()
-                    if user:
-                        login_user(user, remember=remember_me)
-                        next_page = request.args.get('next')
-                        if not next_page or not next_page.startswith('/'):
-                            next_page = url_for('dashboard')
-                        return redirect(next_page)
-                    else:
-                        flash('Admin user not found in database.', 'danger')
-                else:
-                    flash('Invalid admin password.', 'danger')
-                return redirect(url_for('index'))
+    if form.validate_on_submit():
+        username = form.username.data
+        password = form.password.data
+        remember_me = bool(form.remember_me.data)
 
-            # Intern default login
-            if username == 'dctraining' and password == 'Dctraining2023':
-                user = User.query.filter_by(username='dctraining').first()
+        # Admin login: only allow username '215030' and password 'admin123'
+        if username == '215030':
+            if password == 'admin123':
+                user = User.query.filter_by(username='215030').first()
                 if user:
                     login_user(user, remember=remember_me)
                     next_page = request.args.get('next')
@@ -67,46 +55,99 @@ def login():
                         next_page = url_for('dashboard')
                     return redirect(next_page)
                 else:
-                    flash('Intern user not found in database.', 'danger')
-                return redirect(url_for('index'))
+                    flash('Admin user not found in database.', 'danger')
+            else:
+                flash('Invalid admin password.', 'danger')
+            return redirect(url_for('index'))
 
-            # Payroll login for users/interns
-            user = User.query.filter_by(username=username).first()
-            if user and check_password_hash(user.password_hash, password):
-                if not user.is_active:
-                    flash('Your account has been deactivated. Please contact administrator.', 'danger')
-                    return redirect(url_for('index'))
-                
-                # Check if account is verified
-                if not user.is_verified:
-                    flash('Please verify your email address before logging in.', 'warning')
-                    return redirect(url_for('index'))
-                
-                # Check approval status for interns only
-                if user.role == 'intern' and not user.is_approved:
-                    print(f"DEBUG: Intern {user.username} is not approved. is_approved={user.is_approved}, is_active={user.is_active}, role={user.role}")
-                    flash('Your intern account is pending admin approval. Please wait for activation.', 'warning')
-                    return redirect(url_for('index'))
-                
-                print(f"DEBUG: User {user.username} login SUCCESS - role={user.role}, is_approved={user.is_approved}, is_active={user.is_active}")
-                
+        # Intern default login
+        if username == 'dctraining' and password == 'Dctraining2023':
+            user = User.query.filter_by(username='dctraining').first()
+            if user:
                 login_user(user, remember=remember_me)
                 next_page = request.args.get('next')
                 if not next_page or not next_page.startswith('/'):
                     next_page = url_for('dashboard')
                 return redirect(next_page)
-
-            flash('Invalid username or password', 'danger')
+            else:
+                flash('Intern user not found in database.', 'danger')
             return redirect(url_for('index'))
 
-    # For GET requests, redirect to index page instead of showing separate login page
-    return redirect(url_for('index'))
+        # Payroll login for users/interns
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password_hash, password):
+            if not user.is_active:
+                flash('Your account has been deactivated. Please contact administrator.', 'danger')
+                return redirect(url_for('index'))
+            
+            # Check if account is verified
+            if not user.is_verified:
+                flash('Please verify your email address before logging in.', 'warning')
+                return redirect(url_for('index'))
+            
+            # Check approval status for interns only
+            if user.role == 'intern' and not user.is_approved:
+                print(f"DEBUG: Intern {user.username} is not approved. is_approved={user.is_approved}, is_active={user.is_active}, role={user.role}")
+                flash('Your intern account is pending admin approval. Please wait for activation.', 'warning')
+                return redirect(url_for('index'))
+            
+            print(f"DEBUG: User {user.username} login SUCCESS - role={user.role}, is_approved={user.is_approved}, is_active={user.is_active}")
+            
+            login_user(user, remember=remember_me)
+            next_page = request.args.get('next')
+            if not next_page or not next_page.startswith('/'):
+                next_page = url_for('dashboard')
+            return redirect(next_page)
+
+        flash('Invalid username or password', 'danger')
+        return redirect(url_for('index'))
+
+    # Render the index form on GET or failed validation
+    return render_template('index.html', form=form)
 
 @app.route('/logout')
 @login_required
 def logout():
+    # Explicitly log out and clear session
     logout_user()
-    return redirect(url_for('index'))
+    session.clear()
+    session.modified = True
+
+    # Prepare redirect response and expire auth/session cookies to avoid automatic re-login
+    resp = redirect(url_for('index'))
+
+    # Determine remember cookie attributes from config
+    remember_cookie = app.config.get('REMEMBER_COOKIE_NAME', 'remember_token')
+    remember_domain = app.config.get('REMEMBER_COOKIE_DOMAIN', None)
+    remember_path = app.config.get('REMEMBER_COOKIE_PATH', '/')
+
+    # Session cookie attrs
+    session_cookie = getattr(app, 'session_cookie_name', app.config.get('SESSION_COOKIE_NAME', 'session'))
+    session_domain = app.config.get('SESSION_COOKIE_DOMAIN', None)
+    session_path = app.config.get('SESSION_COOKIE_PATH', '/')
+
+    # Expire cookies explicitly using matching path/domain where possible
+    try:
+        resp.set_cookie(remember_cookie, '', expires=0, path=remember_path, domain=remember_domain)
+        resp.delete_cookie(remember_cookie, path=remember_path, domain=remember_domain)
+    except Exception:
+        resp.set_cookie(remember_cookie, '', expires=0, path='/')
+        resp.delete_cookie(remember_cookie, path='/')
+
+    try:
+        resp.set_cookie(session_cookie, '', expires=0, path=session_path, domain=session_domain)
+        resp.delete_cookie(session_cookie, path=session_path, domain=session_domain)
+    except Exception:
+        resp.set_cookie(session_cookie, '', expires=0, path='/')
+        resp.delete_cookie(session_cookie, path='/')
+
+    # Prevent caching so browser does not display stale authenticated pages
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+
+    flash('You have been logged out.', 'info')
+    return resp
 
 
 @app.route('/keepalive')
@@ -116,6 +157,16 @@ def keepalive():
     session.permanent = True
     session['last_activity'] = datetime.utcnow().isoformat()
     return jsonify({'ok': True})
+
+from flask_wtf.csrf import CSRFError
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    app.logger.warning(f"CSRFError: {e.description}")
+    flash('Your session expired or cookies are disabled. Please reload the login page and make sure cookies are enabled.', 'warning')
+    return redirect(url_for('index'))
+
 
 @app.route('/verify/<token>')
 def verify_email(token):

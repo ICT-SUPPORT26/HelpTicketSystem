@@ -1,6 +1,6 @@
 # main.py
 import os
-from pyngrok import ngrok
+# from pyngrok import ngrok
 from app import app  # Import your actual app with routes and models
 
 if __name__ == "__main__":

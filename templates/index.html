@@ -556,27 +556,27 @@
                 {% endwith %}
                 
                 <form method="POST" action="{{ url_for('login') }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    {{ form.csrf_token() }}
                     
                     <div class="form-group">
                         <i class="fas fa-user input-icon-split"></i>
-                        <input type="text" name="username" class="form-control-split" placeholder="Payroll Number" required>
+                        {{ form.username(class='form-control-split', placeholder='Username') }}
                     </div>
                     
                     <div class="form-group">
                         <i class="fas fa-lock input-icon-split"></i>
-                        <input type="password" name="password" class="form-control-split" placeholder="Password" required>
+                        {{ form.password(class='form-control-split', placeholder='Password') }}
                     </div>
                     
                     <div class="form-options-split">
                         <label class="remember-checkbox">
-                            <input type="checkbox" name="remember_me" value="y">
+                            {{ form.remember_me() }}
                             <span>Remember me</span>
                         </label>
                         <a href="{{ url_for('change_password') }}" class="forgot-link">Forgot password?</a>
                     </div>
                     
-                    <button type="submit" class="btn-login-split">LOGIN</button>
+                    {{ form.submit(class='btn-login-split') }}
                 </form>
                 
                 <div class="register-link">

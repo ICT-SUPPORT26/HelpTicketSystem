@@ -5,10 +5,10 @@ from wtforms.validators import DataRequired, Email, Length, EqualTo, Optional, R
 from models import User, Category
 
 class LoginForm(FlaskForm):
-    username = StringField('Payroll Number', validators=[
+    # Allow flexible usernames to support admin and intern test accounts
+    username = StringField('Username', validators=[
         DataRequired(),
-        Length(min=6, max=6, message='Payroll number must be exactly 6 digits'),
-        Regexp('^[0-9]{6}$', message='Payroll number must be exactly 6 digits')
+        Length(min=1, max=100, message='Please enter your username')
     ])
     password = PasswordField('Password', validators=[DataRequired()])
     remember_me = BooleanField('Remember Me')

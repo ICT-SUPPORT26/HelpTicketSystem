@@ -188,6 +188,18 @@ def enforce_session_timeout():
 
         session['last_activity'] = now.isoformat()
 
+@app.after_request
+def add_no_cache_headers(response):
+    """
+    Prevent caching for authenticated pages so that after logout, 
+    browser does not show old pages on refresh.
+    """
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
 # Import routes so they attach to app
 import routes
 
