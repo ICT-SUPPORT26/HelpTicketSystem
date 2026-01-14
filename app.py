@@ -78,6 +78,9 @@ app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'helpt
 
 # Extensions
 db.init_app(app)
+with app.app_context():
+    db.create_all()
+
 login_manager.init_app(app)
 mail.init_app(app)
 csrf = CSRFProtect(app)
