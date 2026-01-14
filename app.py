@@ -78,12 +78,16 @@ app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'helpt
 
 # Extensions
 db.init_app(app)
-with app.app_context():
-    db.create_all()
-
 login_manager.init_app(app)
 mail.init_app(app)
 csrf = CSRFProtect(app)
+
+# IMPORTANT: import models BEFORE create_all
+import models  
+
+with app.app_context():
+    db.create_all()
+
 
 login_manager.login_view = 'login'
 login_manager.login_message = 'Please log in to access this page.'
