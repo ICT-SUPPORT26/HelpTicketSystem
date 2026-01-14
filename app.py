@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 from flask import session, redirect, url_for, flash
 from flask_login import logout_user, current_user
 
-
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -19,11 +18,13 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "default_secret_key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
+# -----------------------------
 # Database configuration
-# The app can use a full DATABASE_URL or individual DB_* variables to build one.
-# Supported DB_ENGINE/DB_TYPE values: "mysql" (default) or "postgres"/"postgresql".
+# -----------------------------
 db_url = os.environ.get("DATABASE_URL")
+
 if not db_url:
+    # Fallback to local/defaults
     db_engine = os.environ.get("DB_ENGINE", os.environ.get("DB_TYPE", "mysql")).lower()
     db_user = os.environ.get("DB_USER", "root")
     db_password = os.environ.get("DB_PASSWORD", "")
@@ -31,21 +32,26 @@ if not db_url:
     db_port = os.environ.get("DB_PORT")
     db_name = os.environ.get("DB_NAME")
 
-    # If DB_NAME is not explicitly set, choose a sensible default based on engine
     if not db_name:
         db_name = "helpticket_system_pg" if db_engine in ("postgres", "postgresql") else "helpticket_system"
 
     if db_engine in ("postgres", "postgresql"):
         driver = "postgresql+psycopg2"
         db_port = db_port or "5432"
+
+        # Render Postgres integration
+        db_user = os.environ.get("RENDER_DB_USER", db_user)
+        db_password = os.environ.get("RENDER_DB_PASSWORD", db_password)
+        db_host = os.environ.get("RENDER_DB_HOST", db_host)
+        db_name = os.environ.get("RENDER_DB_NAME", db_name)
+
+        db_url = f"{driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=require"
     else:
         driver = "mysql+pymysql"
         db_port = db_port or "3306"
+        db_url = f"{driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
 
-    # Build URL (empty password is allowed; will result in 'user:@host')
-    db_url = f"{driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
-
-# Mask password when logging the selected DB URL
+# Mask password when logging
 def _mask_password_from_url(url: str) -> str:
     try:
         if "@" in url:
@@ -88,7 +94,6 @@ import models
 with app.app_context():
     db.create_all()
 
-
 login_manager.login_view = 'login'
 login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'info'
@@ -107,7 +112,6 @@ app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 # Inject commonly-used values into templates
 @app.context_processor
 def inject_now():
-    # Toast and session-expiry configuration (configurable via env vars)
     app.config.setdefault('TOAST_AUTOCLOSE_MS', int(os.environ.get('TOAST_AUTOCLOSE_MS', 5000)))
     app.config.setdefault('SESSION_EXPIRY_TOAST_CLASS', os.environ.get('SESSION_EXPIRY_TOAST_CLASS', 'text-bg-warning'))
     app.config.setdefault('SESSION_EXPIRY_REDIRECT_MS', int(os.environ.get('SESSION_EXPIRY_REDIRECT_MS', 1500)))
@@ -119,10 +123,8 @@ def inject_now():
         'SESSION_EXPIRY_REDIRECT_MS': app.config['SESSION_EXPIRY_REDIRECT_MS'],
     }
 
-
 @app.before_request
 def enforce_session_timeout():
-    # configured `PERMANENT_SESSION_LIFETIME` to determine expiry.
     if current_user.is_authenticated:
         now = datetime.utcnow()
         last = session.get('last_activity')
@@ -133,13 +135,11 @@ def enforce_session_timeout():
                 last_dt = now
 
             if now - last_dt > app.permanent_session_lifetime:
-                # expire session
                 logout_user()
                 session.pop('last_activity', None)
                 flash("Session expired due to inactivity. Please log in again.", "warning")
                 return redirect(url_for('login'))
 
-        # Update last_activity timestamp for every authenticated request
         session['last_activity'] = now.isoformat()
 
 # Import routes so they attach to app
