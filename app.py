@@ -94,6 +94,52 @@ import models
 with app.app_context():
     db.create_all()
 
+
+# --- Ensure default accounts exist ---
+from models import User
+from werkzeug.security import generate_password_hash
+
+with app.app_context():
+    # Check if admin exists
+    admin = User.query.filter_by(username="215030").first()
+    if not admin:
+        admin = User(
+            username="215030",
+            full_name="System Administrator",
+            email="admin@helpticketsystem.com",
+            password_hash=generate_password_hash("admin123"),  # default password
+            role="admin",
+            is_active=True,
+            is_verified=True,
+            is_approved=True
+        )
+        db.session.add(admin)
+        db.session.commit()
+        logging.info("Default admin account created: username='215030', password='admin123'")
+    else:
+        logging.info("Default admin already exists")
+
+    # Check if intern exists
+    intern = User.query.filter_by(username="dctraining").first()
+    if not intern:
+        intern = User(
+            username="dctraining",
+            full_name="Dctraining",
+            email="intern@helpticketsystem.com",
+            password_hash=generate_password_hash("intern123"),  # default password
+            role="intern",
+            is_active=True,
+            is_verified=True,
+            is_approved=True
+        )
+        db.session.add(intern)
+        db.session.commit()
+        logging.info("Default intern account created: username='dctraining', password='intern123'")
+    else:
+        logging.info("Default intern already exists")
+
+
+
 login_manager.login_view = 'login'
 login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'info'
