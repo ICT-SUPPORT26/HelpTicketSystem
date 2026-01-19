@@ -164,7 +164,7 @@ from flask_wtf.csrf import CSRFError
 @app.errorhandler(CSRFError)
 def handle_csrf_error(e):
     app.logger.warning(f"CSRFError: {e.description}")
-    flash('Your session expired or cookies are disabled. Please reload the login page and make sure cookies are enabled.', 'warning')
+    # flash('Your session expired or cookies are disabled. Please reload the login page and make sure cookies are enabled.', 'warning')
     return redirect(url_for('index'))
 
 
