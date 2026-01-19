@@ -1340,9 +1340,9 @@ def create_user():
             flash('Email already registered', 'danger')
             return redirect(url_for('user_management'))
 
-        # Auto-verify admin accounts
-        is_verified = True if form.role.data == 'admin' else False
-        verification_token = None if form.role.data == 'admin' else str(uuid.uuid4())
+        # Auto-verify all accounts created by admin
+        is_verified = True
+        verification_token = None
         user = User(
             username=form.username.data,
             email=form.email.data,

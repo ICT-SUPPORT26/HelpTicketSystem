@@ -17,7 +17,8 @@ def create_admin():
             email='admin@helpdesk.com',
             full_name='System Administrator',
             password_hash=generate_password_hash('admin123'),
-            role='admin'
+            role='admin',
+            is_verified=True
         )
         
         db.session.add(admin_user)
