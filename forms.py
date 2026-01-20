@@ -54,6 +54,7 @@ class TicketForm(FlaskForm):
     location_subunit = SelectField('Subunit', choices=[('', 'Select Subunit')], validate_choice=False)
     description = TextAreaField('Description', validators=[DataRequired()])
     category_id = SelectField('Category', coerce=int, validators=[Optional()])
+    mis_subcategory = StringField('MIS Subcategory', validators=[Optional()])
     priority = SelectField('Priority', choices=[
         ('low', 'Low'),
         ('medium', 'Medium'),

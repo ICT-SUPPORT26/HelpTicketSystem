@@ -1469,6 +1469,22 @@ def api_ticket_descriptions():
     unique_desc = list({d[0].strip() for d in descriptions if d[0] and len(d[0].strip()) > 10})
     return jsonify(unique_desc)
 
+@app.route('/api/mis_subcategories')
+@login_required
+def api_mis_subcategories():
+    # Get MIS subcategories from tickets with category 'University MIS System Issue'
+    mis_category = Category.query.filter_by(name='University MIS System Issue').first()
+    if not mis_category:
+        return jsonify([])
+    descriptions = db.session.query(Ticket.description).filter(Ticket.category_id == mis_category.id).order_by(Ticket.created_at.desc()).limit(100).all()
+    subcategories = []
+    for desc in descriptions:
+        if desc[0].startswith('[') and ']' in desc[0]:
+            subcat = desc[0].split(']')[0][1:]  # Extract [subcat]
+            if subcat and subcat not in subcategories:
+                subcategories.append(subcat)
+    return jsonify(subcategories)
+
 @app.route('/api/notifications')
 @login_required
 def api_notifications():

@@ -72,6 +72,17 @@
                             {% endif %}
                         </div>
 
+                        <div class="col-md-6 mb-3" id="mis-subcategory-group" style="display:none;">
+                            {{ form.mis_subcategory.label(class="form-label") }}
+                            {{ form.mis_subcategory(class="form-control", id="mis_subcategory") }}
+                            <div id="mis-autocomplete-list" class="list-group position-absolute w-100"></div>
+                            {% if form.mis_subcategory.errors %}
+                                {% for error in form.mis_subcategory.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
                         <div class="col-md-6 mb-3">
                             {{ form.priority.label(class="form-label") }}
                             {{ form.priority(class="form-control") }}
@@ -210,6 +221,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize on page load
     updateSubunitOptions();
 
+    // Category change for MIS subcategory
+    const categorySelect = document.getElementById('category_id');
+    const misSubcategoryGroup = document.getElementById('mis-subcategory-group');
+    categorySelect.addEventListener('change', function() {
+        const selectedOption = categorySelect.options[categorySelect.selectedIndex];
+        if (selectedOption.text === 'University MIS System Issue') {
+            misSubcategoryGroup.style.display = '';
+        } else {
+            misSubcategoryGroup.style.display = 'none';
+        }
+    });
+
     // Drag-and-drop file upload
     const dropArea = document.getElementById('drop-area');
     const fileInput = document.getElementById('attachments');
@@ -282,6 +305,39 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(e) {
         if (!descList.contains(e.target) && e.target !== descInput) {
             descList.innerHTML = '';
+        }
+    });
+
+    // --- Autocomplete for MIS Subcategory ---
+    const misInput = document.getElementById('mis_subcategory');
+    const misList = document.getElementById('mis-autocomplete-list');
+    let misHistory = [];
+    
+    fetch("/api/mis_subcategories")
+        .then(res => res.json())
+        .then(data => { misHistory = data; });
+    
+    misInput.addEventListener('input', function() {
+        const val = this.value.toLowerCase();
+        misList.innerHTML = '';
+        if (val.length < 1) return;
+        const matches = misHistory.filter(d => d.toLowerCase().includes(val)).slice(0, 5);
+        matches.forEach(match => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'list-group-item list-group-item-action';
+            item.textContent = match;
+            item.onclick = () => {
+                misInput.value = match;
+                misList.innerHTML = '';
+            };
+            misList.appendChild(item);
+        });
+    });
+    
+    document.addEventListener('click', function(e) {
+        if (!misList.contains(e.target) && e.target !== misInput) {
+            misList.innerHTML = '';
         }
     });
 });
