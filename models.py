@@ -67,7 +67,7 @@ class Ticket(db.Model):
     location = db.Column(db.String(200), nullable=False)
     description = db.Column(Text, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='open')  # open, in_progress, resolved, closed
-    priority = db.Column(db.String(20), nullable=False, default='medium')  # low, medium, high, urgent
+    priority = db.Column(db.String(20), nullable=False, default='low')  # urgency, low, high
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     closed_at = db.Column(db.DateTime)

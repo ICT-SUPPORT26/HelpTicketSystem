@@ -55,12 +55,6 @@ class TicketForm(FlaskForm):
     description = TextAreaField('Description', validators=[DataRequired()])
     category_id = SelectField('Category', coerce=int, validators=[Optional()])
     mis_subcategory = StringField('MIS Subcategory', validators=[Optional()])
-    priority = SelectField('Priority', choices=[
-        ('low', 'Low'),
-        ('medium', 'Medium'),
-        ('high', 'High'),
-        ('urgent', 'Urgent')
-    ], default='medium')
     assignees = SelectMultipleField('Assign To', coerce=int, validators=[Optional()])
     attachments = FileField('Attachments', validators=[
         FileAllowed(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'xls', 'xlsx'], 
@@ -87,10 +81,9 @@ class TicketUpdateForm(FlaskForm):
     ])
     assignees = SelectMultipleField('Assignees', coerce=int, validators=[Optional()])
     priority = SelectField('Priority', choices=[
+        ('urgent', 'Urgent'),
         ('low', 'Low'),
-        ('medium', 'Medium'),
-        ('high', 'High'),
-        ('urgent', 'Urgent')
+        ('high', 'High')
     ])
     submit = SubmitField('Update Ticket')
 

@@ -386,16 +386,13 @@ def new_ticket():
                 assignee_ids = []
         else:  # admin
             assignee_ids = form.assignees.data or []
-        # Priority-based limits
-        max_assignees = 1
-        if form.priority.data == 'urgent':
+        # Set max assignees based on role
+        if current_user.role == 'admin':
             max_assignees = 3
-        elif form.priority.data == 'high':
-            max_assignees = 4
-        elif form.priority.data == 'low':
+        else:
             max_assignees = 1
         if len(assignee_ids) > max_assignees:
-            flash(f'Maximum {max_assignees} assignees allowed for {form.priority.data.title()} priority.', 'danger')
+            flash(f'Maximum {max_assignees} assignees allowed.', 'danger')
             return render_template('ticket_form.html', form=form, title='New Ticket')
         # Limit: Only 1 active (open/in_progress) ticket per intern/technician
         if assignee_ids:
@@ -703,8 +700,8 @@ def update_ticket(id):
                     Ticket.status.in_(['open', 'in_progress']),
                     Ticket.id != ticket.id
                 ).count()
-                if active_task_count >= 1:
-                    flash('This technician/intern already has an active task assigned. Only 1 active task is allowed at a time.', 'danger')
+                if active_task_count >= 3:
+                    flash('This technician/intern already has an active task assigned. Only 3 active tasks are allowed at a time.', 'danger')
                     return render_template('ticket_detail.html', ticket=ticket, comments=Comment.query.filter_by(ticket_id=id).all(), comment_form=CommentForm(), update_form=form)
             
             # Update assignees and track newly assigned
