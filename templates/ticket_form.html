@@ -82,6 +82,16 @@
                                 {% endfor %}
                             {% endif %}
                         </div>
+
+                        <div class="col-md-6 mb-3">
+                            {{ form.priority.label(class="form-label") }}
+                            {{ form.priority(class="form-control") }}
+                            {% if form.priority.errors %}
+                                {% for error in form.priority.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
                     </div>
 
                     <!-- Assign To -->
