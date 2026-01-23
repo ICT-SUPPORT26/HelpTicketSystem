@@ -271,8 +271,11 @@ def dashboard():
 
     stats = get_dashboard_stats(current_user)
 
-    # Show recent tickets where the user is an assignee (for both users and interns)
-    recent_tickets = Ticket.query.join(Ticket.assignees).filter(User.id == current_user.id).order_by(desc(Ticket.updated_at)).limit(5).all()
+    # Show recent tickets: for users show tickets they created, for others show assigned tickets
+    if current_user.role == 'user':
+        recent_tickets = Ticket.query.filter_by(created_by_id=current_user.id).order_by(desc(Ticket.updated_at)).limit(5).all()
+    else:
+        recent_tickets = Ticket.query.join(Ticket.assignees).filter(User.id == current_user.id).order_by(desc(Ticket.updated_at)).limit(5).all()
 
     # Get system categories for reports upload
     system_categories = [c.name for c in Category.query.all()]
@@ -426,18 +429,19 @@ def new_ticket():
             loc_parts.append(detail)
 
         location = ' - '.join([p for p in loc_parts if p]) if loc_parts else (form.location.data if hasattr(form, 'location') and form.location.data else '')
-        # If University MIS System Issue, append subcategory to description
-        category_obj = Category.query.get(form.category_id.data)
+        # If University MIS System Issue, append subcategory to description (only for admins)
         description = form.description.data
-        if category_obj and category_obj.name == 'University MIS System Issue' and form.mis_subcategory.data:
-            description = f"[{form.mis_subcategory.data}] " + description
+        if current_user.role == 'admin' and hasattr(form, 'category_id') and form.category_id.data:
+            category_obj = Category.query.get(form.category_id.data)
+            if category_obj and category_obj.name == 'University MIS System Issue' and hasattr(form, 'mis_subcategory') and form.mis_subcategory.data:
+                description = f"[{form.mis_subcategory.data}] " + description
 
         ticket = Ticket(
             location=location,
             description=description,
-            priority=form.priority.data,
+            priority=form.priority.data if current_user.role == 'admin' and hasattr(form, 'priority') and form.priority.data else 'low',
             created_by_id=current_user.id,
-            category_id=form.category_id.data if form.category_id.data else None,
+            category_id=form.category_id.data if current_user.role == 'admin' and hasattr(form, 'category_id') and form.category_id.data else None,
             status='in_progress' if assignee_ids else 'open',
             created_at=now_nairobi,
             updated_at=now_nairobi

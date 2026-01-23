@@ -5,9 +5,11 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h2>
+    {% if current_user.role == 'admin' %}
     <a href="{{ url_for('new_ticket') }}" class="btn btn-primary">
         <i class="fas fa-plus me-2"></i>New Ticket
     </a>
+    {% endif %}
 </div>
 
 <!-- Statistics Cards -->
@@ -58,7 +60,8 @@
             </a>
         </div>
     {% else %}
-        <div class="col-md-3">
+        {% if current_user.role != 'user' %}
+        <div class="col">
             <a href="{{ url_for('tickets_list') }}" class="text-decoration-none">
                 <div class="card bg-primary h-100">
                     <div class="card-body text-center">
@@ -69,7 +72,8 @@
                 </div>
             </a>
         </div>
-        <div class="col-md-3">
+        {% endif %}
+        <div class="col">
             <a href="{{ url_for('tickets_list', status='open') }}" class="text-decoration-none">
                 <div class="card bg-warning h-100">
                     <div class="card-body text-center">
@@ -80,7 +84,7 @@
                 </div>
             </a>
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <a href="{{ url_for('tickets_list', status='in_progress') }}" class="text-decoration-none">
                 <div class="card bg-info h-100">
                     <div class="card-body text-center">
@@ -91,7 +95,7 @@
                 </div>
             </a>
         </div>
-        <div class="col-md-3">
+        <div class="col">
             <a href="{{ url_for('tickets_list', status='closed') }}" class="text-decoration-none">
                 <div class="card bg-secondary h-100">
                     <div class="card-body text-center">
@@ -102,7 +106,8 @@
                 </div>
             </a>
         </div>
-        <div class="col-md-3">
+        {% if current_user.role != 'user' %}
+        <div class="col">
             <a href="{{ url_for('tickets_list', priority='urgent') }}" class="text-decoration-none">
                 <div class="card bg-danger h-100">
                     <div class="card-body text-center">
@@ -113,6 +118,7 @@
                 </div>
             </a>
         </div>
+        {% endif %}
     {% endif %}
 </div>
 
@@ -137,7 +143,9 @@
                             <th>ID</th>
                             <th>Location</th>
                             <th>Status</th>
+                            {% if current_user.role != 'user' %}
                             <th>Priority</th>
+                            {% endif %}
                             {% if current_user.role == 'intern' %}
                             <th>Created By</th>
                             {% else %}
@@ -157,11 +165,13 @@
                                     {{ ticket.status.replace('_', ' ').title() }}
                                 </span>
                             </td>
+                            {% if current_user.role != 'user' %}
                             <td>
                                 <span class="badge {{ ticket.priority|priority_badge }}">
                                     {{ ticket.priority.title() }}
                                 </span>
                             </td>
+                            {% endif %}
                             {% if current_user.role == 'intern' %}
                             <td>{{ ticket.creator.full_name }}</td>
                             {% else %}
@@ -209,9 +219,11 @@
                         No tickets assigned to you yet.
                     {% endif %}
                 </p>
+                {% if current_user.role != 'user' %}
                 <a href="{{ url_for('new_ticket') }}" class="btn btn-primary">
                     <i class="fas fa-plus me-2"></i>Create Your First Ticket
                 </a>
+                {% endif %}
             </div>
         {% endif %}
     </div>

@@ -61,6 +61,7 @@
                     </div>
 
                     <!-- Category and Priority -->
+                    {% if current_user.role == 'admin' %}
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ form.category_id.label(class="form-label") }}
@@ -93,6 +94,7 @@
                             {% endif %}
                         </div>
                     </div>
+                    {% endif %}
 
                     <!-- Assign To -->
                     {% if current_user.role == 'admin' %}
@@ -109,6 +111,7 @@
                     {% endif %}
 
                     <!-- Attachments -->
+                    {% if current_user.role == 'admin' %}
                     <div class="mb-3">
                         <label for="attachments" class="form-label">Attachments</label>
                         <div id="drop-area" class="border rounded p-3 text-center bg-light" style="cursor:pointer;">
@@ -126,6 +129,7 @@
                             Allowed file types: txt, pdf, png, jpg, jpeg, gif, doc, docx, xls, xlsx (Max 16MB)
                         </div>
                     </div>
+                    {% endif %}
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('tickets_list') }}" class="btn btn-secondary">

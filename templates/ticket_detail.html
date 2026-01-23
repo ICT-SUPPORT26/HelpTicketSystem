@@ -16,9 +16,11 @@
                         <span class="badge {{ ticket.status|status_badge }} me-2">
                             {{ ticket.status.replace('_', ' ').title() }}
                         </span>
+                        {% if current_user.role == 'admin' %}
                         <span class="badge {{ ticket.priority|priority_badge }}">
                             {{ ticket.priority.title() }}
                         </span>
+                        {% endif %}
                     </div>
                     {% if current_user.role == 'admin' %}
                     <div>
@@ -132,7 +134,9 @@
                                     <i class="fas fa-clock text-info me-2"></i>
                                     <strong>Current Status:</strong> 
                                     <span class="badge {{ ticket.status|status_badge }}">{{ ticket.status.replace('_', ' ').title() }}</span>
+                                    {% if current_user.role == 'admin' %}
                                     <span class="badge {{ ticket.priority|priority_badge }} ms-1">{{ ticket.priority.title() }} Priority</span>
+                                    {% endif %}
                                 </div>
                                 {% endif %}
                             </div>
@@ -161,8 +165,10 @@
                             <strong>Last updated:</strong> {{ ticket.updated_at|format_datetime }}<br>
                             <strong>Current Status:</strong> 
                             <span class="badge {{ ticket.status|status_badge }}">{{ ticket.status.replace('_', ' ').title() }}</span><br>
+                            {% if current_user.role == 'admin' %}
                             <strong>Priority:</strong> 
                             <span class="badge {{ ticket.priority|priority_badge }}">{{ ticket.priority.title() }}</span>
+                            {% endif %}
                         </small>
                     </div>
                 </div>
