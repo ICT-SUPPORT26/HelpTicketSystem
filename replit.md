@@ -52,4 +52,9 @@ gunicorn --bind 0.0.0.0:5000 app:app
 - `MOVESMS_USERNAME`, `MOVESMS_APIKEY`, `MOVESMS_SENDER_ID` - SMS service config
 
 ## Recent Changes
+- 2026-01-23: Implemented role-based ticket workflow:
+  - Admin: Can assign technicians, set priority, category optional (unclassified by default)
+  - Technician (intern): Cannot edit priority, must select category when resolving ticket
+  - Category required when status = "Resolved" and locked after closure
+  - Added category history logging
 - 2026-01-23: Initial import and Replit environment setup

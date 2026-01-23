@@ -540,7 +540,13 @@ def ticket_detail(id):
         comments = Comment.query.filter_by(ticket_id=id).order_by(Comment.created_at).all()
 
     comment_form = CommentForm()
-    update_form = TicketUpdateForm(user_role=current_user.role, current_status=ticket.status, obj=ticket) if current_user.role in ['admin', 'intern'] else None
+    update_form = None
+    if current_user.role in ['admin', 'intern']:
+        update_form = TicketUpdateForm(user_role=current_user.role, current_status=ticket.status, obj=ticket)
+        update_form.status.data = ticket.status
+        update_form.priority.data = ticket.priority
+        update_form.category_id.data = ticket.category_id if ticket.category_id else 0
+        update_form.assignees.data = [u.id for u in ticket.assignees]
 
     # Check if intern can escalate this ticket (created by them or assigned to them)
     can_escalate = current_user.role == 'intern' and (ticket.created_by_id == current_user.id or current_user.id in [u.id for u in ticket.assignees]) and ticket.status not in ['closed']
@@ -670,6 +676,7 @@ def update_ticket(id):
     if form.validate_on_submit():
         old_status = ticket.status
         old_priority = ticket.priority
+        old_category_id = ticket.category_id
         old_assignees = set([u.id for u in ticket.assignees])
 
         # Prevent interns from closing tickets
@@ -692,8 +699,28 @@ def update_ticket(id):
             flash('Tickets can only be closed if they are resolved first.', 'danger')
             return redirect(url_for('ticket_detail', id=id))
 
+        # Category is required when resolving a ticket
+        if form.status.data == 'resolved' and (not form.category_id.data or form.category_id.data == 0):
+            flash('Category is required when resolving a ticket. Please select a category.', 'danger')
+            return redirect(url_for('ticket_detail', id=id))
+
+        # Prevent category changes on closed tickets
+        if old_status == 'closed':
+            flash('Cannot modify a closed ticket.', 'danger')
+            return redirect(url_for('ticket_detail', id=id))
+
         ticket.status = form.status.data
-        ticket.priority = form.priority.data
+        
+        # Only admins can change priority; interns cannot edit priority
+        if current_user.role == 'admin':
+            ticket.priority = form.priority.data
+        
+        # Update category - admins can always update, interns only when resolving
+        if current_user.role == 'admin':
+            ticket.category_id = form.category_id.data if form.category_id.data != 0 else None
+        elif current_user.role == 'intern' and form.status.data == 'resolved':
+            ticket.category_id = form.category_id.data if form.category_id.data != 0 else None
+        
         ticket.updated_at = datetime.utcnow()
 
         # Only admins can reassign tickets
@@ -782,6 +809,20 @@ def update_ticket(id):
                 field_changed='priority',
                 old_value=old_priority,
                 new_value=ticket.priority
+            )
+            db.session.add(history)
+        # Log history for category change
+        if old_category_id != ticket.category_id:
+            from models import TicketHistory, Category
+            old_cat_name = Category.query.get(old_category_id).name if old_category_id else 'Unclassified'
+            new_cat_name = Category.query.get(ticket.category_id).name if ticket.category_id else 'Unclassified'
+            history = TicketHistory(
+                ticket_id=ticket.id,
+                user_id=current_user.id,
+                action='category changed',
+                field_changed='category',
+                old_value=old_cat_name,
+                new_value=new_cat_name
             )
             db.session.add(history)
         # Log history for reassignment

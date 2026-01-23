@@ -279,20 +279,36 @@
                 {% if ticket.status == 'closed' %}
                 <p class="text-muted">This ticket is closed and cannot be modified.</p>
                 {% else %}
-                <form method="POST" action="{{ url_for('update_ticket', id=ticket.id) }}">
+                <form method="POST" action="{{ url_for('update_ticket', id=ticket.id) }}" id="updateTicketForm">
                     {{ update_form.hidden_tag() }}
                     
                     <div class="mb-3">
                         {{ update_form.status.label(class="form-label") }}
-                        {{ update_form.status(class="form-control") }}
+                        {{ update_form.status(class="form-control", id="statusSelect") }}
                         <div class="form-text">
                             <small class="text-info">Note: Tickets can only be closed if they are resolved first.</small>
                         </div>
                     </div>
                     
+                    {% if current_user.role == 'admin' %}
                     <div class="mb-3">
                         {{ update_form.priority.label(class="form-label") }}
                         {{ update_form.priority(class="form-control") }}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3" id="categoryField">
+                        {{ update_form.category_id.label(class="form-label") }}
+                        {{ update_form.category_id(class="form-control", id="categorySelect") }}
+                        {% if current_user.role == 'intern' %}
+                        <div class="form-text">
+                            <small class="text-warning" id="categoryHint">Category is required when resolving the ticket.</small>
+                        </div>
+                        {% else %}
+                        <div class="form-text">
+                            <small class="text-muted">Optional for admin. Required when resolving ticket.</small>
+                        </div>
+                        {% endif %}
                     </div>
                     
                     {% if current_user.role == 'admin' %}
@@ -317,14 +333,58 @@
 
 {% block scripts %}
 <script>
-// Auto-resize textarea
 document.addEventListener('DOMContentLoaded', function() {
+    // Auto-resize textarea
     const textarea = document.querySelector('#content');
     if (textarea) {
         textarea.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = this.scrollHeight + 'px';
         });
+    }
+    
+    // Category validation for status changes
+    const statusSelect = document.getElementById('statusSelect');
+    const categorySelect = document.getElementById('categorySelect');
+    const categoryField = document.getElementById('categoryField');
+    const categoryHint = document.getElementById('categoryHint');
+    
+    if (statusSelect && categorySelect) {
+        function updateCategoryRequirement() {
+            const isResolving = statusSelect.value === 'resolved';
+            if (isResolving) {
+                categoryField.classList.add('border-warning');
+                if (categoryHint) {
+                    categoryHint.classList.remove('text-muted');
+                    categoryHint.classList.add('text-danger', 'fw-bold');
+                    categoryHint.textContent = 'Category is REQUIRED to resolve this ticket!';
+                }
+                categorySelect.required = true;
+            } else {
+                categoryField.classList.remove('border-warning');
+                if (categoryHint) {
+                    categoryHint.classList.remove('text-danger', 'fw-bold');
+                    categoryHint.classList.add('text-muted');
+                    categoryHint.textContent = 'Category is required when resolving the ticket.';
+                }
+                categorySelect.required = false;
+            }
+        }
+        
+        statusSelect.addEventListener('change', updateCategoryRequirement);
+        updateCategoryRequirement();
+        
+        // Form validation before submit
+        const form = document.getElementById('updateTicketForm');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                if (statusSelect.value === 'resolved' && (!categorySelect.value || categorySelect.value === '0')) {
+                    e.preventDefault();
+                    alert('Please select a category before resolving the ticket.');
+                    categorySelect.focus();
+                }
+            });
+        }
     }
 });
 </script>

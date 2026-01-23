@@ -92,19 +92,21 @@ class TicketUpdateForm(FlaskForm):
         ('high', 'High'),
         ('urgent', 'Urgent')
     ])
+    category_id = SelectField('Category', coerce=int, validators=[Optional()])
     submit = SubmitField('Update Ticket')
 
     def __init__(self, user_role=None, current_status=None, *args, **kwargs):
         super(TicketUpdateForm, self).__init__(*args, **kwargs)
         self.assignees.choices = [(u.id, u.full_name) for u in User.query.filter(User.role.in_(['admin', 'intern'])).all()]
+        self.category_id.choices = [(0, 'Unclassified')] + [(c.id, c.name) for c in Category.query.all()]
+        self.user_role = user_role
+        self.current_status = current_status
 
         # Restrict status choices for interns
         if user_role == 'intern':
             if current_status == 'resolved':
-                # Once resolved, interns can only keep it resolved or closed (but closed is also restricted)
                 self.status.choices = [('resolved', 'Resolved')]
             else:
-                # Normal progression for interns
                 self.status.choices = [
                     ('open', 'Open'),
                     ('in_progress', 'In Progress'),
