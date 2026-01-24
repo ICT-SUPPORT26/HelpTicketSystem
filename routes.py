@@ -673,7 +673,13 @@ def update_ticket(id):
         abort(403)
 
     form = TicketUpdateForm(user_role=current_user.role, current_status=ticket.status)
+    
+    # Debug logging  
+    print(f"DEBUG UPDATE TICKET: method={request.method}, status={request.form.get('status')}, category_id={request.form.get('category_id')}")
+    print(f"DEBUG CHOICES: {form.status.choices}")
+    
     if form.validate_on_submit():
+        print("DEBUG: Form validated successfully!")
         old_status = ticket.status
         old_priority = ticket.priority
         old_category_id = ticket.category_id
@@ -846,6 +852,12 @@ def update_ticket(id):
         NotificationManager.notify_ticket_updated(ticket, current_user)
 
         flash('Ticket updated successfully', 'success')
+    else:
+        # Debug - form validation failed
+        print(f"DEBUG VALIDATION FAILED: {form.errors}")
+        if form.errors:
+            for field, errors in form.errors.items():
+                flash(f'Error in {field}: {", ".join(errors)}', 'danger')
 
     return redirect(url_for('ticket_detail', id=id))
 
