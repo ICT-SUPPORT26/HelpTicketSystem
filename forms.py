@@ -102,15 +102,20 @@ class TicketUpdateForm(FlaskForm):
         self.user_role = user_role
         self.current_status = current_status
 
-        # Restrict status choices for interns
+        # Restrict status choices for interns - natural workflow progression
         if user_role == 'intern':
             if current_status == 'resolved':
-                self.status.choices = [('resolved', 'Resolved')]
+                self.status.choices = [('resolved', 'Resolved - Ready for Closure')]
+            elif current_status == 'in_progress':
+                self.status.choices = [
+                    ('in_progress', 'In Progress - Working on it'),
+                    ('resolved', 'Resolved - Ready for Closure')
+                ]
             else:
                 self.status.choices = [
-                    ('open', 'Open'),
-                    ('in_progress', 'In Progress'),
-                    ('resolved', 'Resolved')
+                    ('open', 'Open - Pending'),
+                    ('in_progress', 'In Progress - Working on it'),
+                    ('resolved', 'Resolved - Ready for Closure')
                 ]
 
 class UserManagementForm(FlaskForm):

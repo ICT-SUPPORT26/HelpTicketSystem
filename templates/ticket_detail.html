@@ -285,9 +285,23 @@
                     <div class="mb-3">
                         {{ update_form.status.label(class="form-label") }}
                         {{ update_form.status(class="form-control", id="statusSelect") }}
+                        {% if current_user.role == 'intern' %}
+                        <div class="form-text">
+                            <small class="text-info" id="statusHint">
+                                {% if ticket.status == 'in_progress' %}
+                                When issue is fixed, select "Resolved - Ready for Closure" and choose a category.
+                                {% elif ticket.status == 'open' %}
+                                Start working by selecting "In Progress", then "Resolved" when done.
+                                {% else %}
+                                Ticket is ready for admin/user to close.
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% else %}
                         <div class="form-text">
                             <small class="text-info">Note: Tickets can only be closed if they are resolved first.</small>
                         </div>
+                        {% endif %}
                     </div>
                     
                     {% if current_user.role == 'admin' %}
@@ -350,22 +364,36 @@ document.addEventListener('DOMContentLoaded', function() {
     const categoryHint = document.getElementById('categoryHint');
     
     if (statusSelect && categorySelect) {
+        const statusHint = document.getElementById('statusHint');
+        
         function updateCategoryRequirement() {
             const isResolving = statusSelect.value === 'resolved';
             if (isResolving) {
-                categoryField.classList.add('border-warning');
+                categoryField.classList.add('border', 'border-warning', 'rounded', 'p-2');
+                categoryField.style.backgroundColor = '#fff3cd';
                 if (categoryHint) {
-                    categoryHint.classList.remove('text-muted');
+                    categoryHint.classList.remove('text-muted', 'text-warning');
                     categoryHint.classList.add('text-danger', 'fw-bold');
-                    categoryHint.textContent = 'Category is REQUIRED to resolve this ticket!';
+                    categoryHint.textContent = 'SELECT A CATEGORY to complete resolution!';
+                }
+                if (statusHint) {
+                    statusHint.classList.remove('text-info');
+                    statusHint.classList.add('text-success', 'fw-bold');
+                    statusHint.textContent = 'Great! Now select a category below to complete the resolution.';
                 }
                 categorySelect.required = true;
+                categorySelect.focus();
             } else {
-                categoryField.classList.remove('border-warning');
+                categoryField.classList.remove('border', 'border-warning', 'rounded', 'p-2');
+                categoryField.style.backgroundColor = '';
                 if (categoryHint) {
                     categoryHint.classList.remove('text-danger', 'fw-bold');
-                    categoryHint.classList.add('text-muted');
+                    categoryHint.classList.add('text-warning');
                     categoryHint.textContent = 'Category is required when resolving the ticket.';
+                }
+                if (statusHint) {
+                    statusHint.classList.remove('text-success', 'fw-bold');
+                    statusHint.classList.add('text-info');
                 }
                 categorySelect.required = false;
             }
