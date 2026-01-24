@@ -91,7 +91,7 @@ class TicketUpdateForm(FlaskForm):
         ('medium', 'Medium'),
         ('high', 'High'),
         ('urgent', 'Urgent')
-    ])
+    ], validators=[Optional()])
     category_id = SelectField('Category', coerce=int, validators=[Optional()])
     submit = SubmitField('Update Ticket')
 
