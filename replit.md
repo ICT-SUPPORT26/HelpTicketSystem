@@ -52,6 +52,15 @@ gunicorn --bind 0.0.0.0:5000 app:app
 - `MOVESMS_USERNAME`, `MOVESMS_APIKEY`, `MOVESMS_SENDER_ID` - SMS service config
 
 ## Recent Changes
+- 2026-01-26: Implemented ticket escalation system:
+  - Interns can escalate tickets they are assigned to when unable to resolve
+  - Escalation requires a mandatory reason (10-500 characters)
+  - Status changes to "escalated" and technician is unassigned
+  - Optional priority increase to "urgent" on escalation
+  - All changes logged in ticket history
+  - Admin notifications via in-app and email
+  - Only admins can de-escalate tickets
+  - New database fields: escalated_at, escalated_by_id, escalation_reason
 - 2026-01-23: Implemented role-based ticket workflow:
   - Admin: Can assign technicians, set priority, category optional (unclassified by default)
   - Technician (intern): Cannot edit priority, must select category when resolving ticket
