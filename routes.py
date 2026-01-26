@@ -594,7 +594,10 @@ def add_comment(id):
 @app.route('/ticket/<int:id>/escalate', methods=['POST'])
 @login_required
 def escalate_ticket(id):
-    """Allow interns to escalate a ticket to all active admins. Creates in-app notifications for admins."""
+    """Allow interns to escalate a ticket to all active admins with a required reason."""
+    from forms import EscalationForm
+    from models import TicketHistory
+    
     ticket = Ticket.query.get_or_404(id)
 
     # Permission: only interns can escalate, and only for tickets they created or are assigned to
@@ -602,62 +605,128 @@ def escalate_ticket(id):
         abort(403)
     if not (ticket.created_by_id == current_user.id or current_user.id in [u.id for u in ticket.assignees]):
         abort(403)
-
-    # Notify all active admins
-    admins = User.query.filter_by(role='admin', is_active=True).all()
-    if not admins:
-        flash('No active admins are available to receive this escalation. Please try again later.', 'warning')
+    
+    # Can't escalate closed or already escalated tickets
+    if ticket.status in ['closed', 'escalated']:
+        flash('This ticket cannot be escalated.', 'warning')
         return redirect(url_for('ticket_detail', id=id))
 
-    for admin in admins:
+    form = EscalationForm()
+    if form.validate_on_submit():
+        reason = form.reason.data
+        increase_priority = form.increase_priority.data
+        
+        old_status = ticket.status
+        old_priority = ticket.priority
+        
+        # Update ticket status to escalated
+        ticket.status = 'escalated'
+        ticket.escalated_at = datetime.utcnow()
+        ticket.escalated_by_id = current_user.id
+        ticket.escalation_reason = reason
+        ticket.updated_at = datetime.utcnow()
+        
+        # Optionally increase priority to urgent
+        if increase_priority and ticket.priority != 'urgent':
+            ticket.priority = 'urgent'
+        
+        # Unassign the current technician (ticket goes back to admin pool)
+        old_assignees = [u.id for u in ticket.assignees]
+        ticket.assignees = []
+        
+        # Log status change in history
+        history = TicketHistory(
+            ticket_id=ticket.id,
+            user_id=current_user.id,
+            action='escalated',
+            field_changed='status',
+            old_value=old_status,
+            new_value='escalated'
+        )
+        db.session.add(history)
+        
+        # Log priority change if applicable
+        if old_priority != ticket.priority:
+            priority_history = TicketHistory(
+                ticket_id=ticket.id,
+                user_id=current_user.id,
+                action='priority increased on escalation',
+                field_changed='priority',
+                old_value=old_priority,
+                new_value=ticket.priority
+            )
+            db.session.add(priority_history)
+        
+        # Log escalation reason
+        reason_history = TicketHistory(
+            ticket_id=ticket.id,
+            user_id=current_user.id,
+            action='escalation reason',
+            field_changed='escalation_reason',
+            old_value=None,
+            new_value=reason[:200]
+        )
+        db.session.add(reason_history)
+        
+        db.session.commit()
+
+        # Notify all active admins
+        admins = User.query.filter_by(role='admin', is_active=True).all()
+        for admin in admins:
+            try:
+                NotificationManager.create_notification(
+                    user_id=admin.id,
+                    ticket_id=ticket.id,
+                    notification_type='escalation',
+                    title=f'Escalation: Ticket #{ticket.id}',
+                    message=f'Ticket #{ticket.id} has been escalated by {current_user.full_name}.\n\nReason: {reason}\n\nLocation: {ticket.location}\nPriority: {ticket.priority}'
+                )
+            except Exception as e:
+                print(f"Error creating escalation notification for admin {admin.id}: {e}")
+
+        # Send escalation emails to active admins if mail is configured
         try:
-            NotificationManager.create_notification(
-                user_id=admin.id,
-                ticket_id=ticket.id,
-                notification_type='escalation',
-                title=f'Escalation: Ticket #{ticket.id}',
-                message=f'Ticket #{ticket.id} has been escalated by {current_user.full_name}.\n\nLocation: {ticket.location}\nPriority: {ticket.priority}\nDescription: {ticket.description[:200]}'
-            )
+            admin_emails = [a.email for a in admins if a.email]
+            if admin_emails and app.config.get('MAIL_USERNAME') and app.config.get('MAIL_PASSWORD'):
+                priority_prefix = "🔴 URGENT:" if ticket.priority == 'urgent' else "🟠 HIGH:" if ticket.priority == 'high' else "🟡 MEDIUM:" if ticket.priority == 'medium' else "🟢 LOW:"
+                subject = f"{priority_prefix} Ticket #{ticket.id} Escalated - {ticket.location}"
+                
+                ticket_url = url_for('ticket_detail', id=ticket.id, _external=True)
+                
+                html_body = render_template('email_escalation.html',
+                    ticket_id=ticket.id,
+                    location=ticket.location,
+                    priority=ticket.priority,
+                    description=ticket.description,
+                    escalated_by=current_user.full_name,
+                    escalation_reason=reason,
+                    ticket_url=ticket_url
+                )
+                
+                text_body = (
+                    f"Ticket #{ticket.id} has been escalated by {current_user.full_name}.\n\n"
+                    f"Reason: {reason}\n\n"
+                    f"Location: {ticket.location}\nPriority: {ticket.priority}\n\n"
+                    f"Description:\n{ticket.description}\n\n"
+                    f"View ticket: {ticket_url}\n\n"
+                    "Please log in to the ICT Helpdesk to manage this ticket."
+                )
+                
+                msg = Message(subject, recipients=admin_emails)
+                msg.body = text_body
+                msg.html = html_body
+                mail.send(msg)
         except Exception as e:
-            print(f"Error creating escalation notification for admin {admin.id}: {e}")
+            print(f"Error sending escalation emails: {e}")
 
-    # Send escalation emails to active admins if mail is configured
-    try:
-        admin_emails = [a.email for a in admins if a.email]
-        if admin_emails and app.config.get('MAIL_USERNAME') and app.config.get('MAIL_PASSWORD'):
-            # Build priority-highlighted subject with emoji
-            priority_prefix = "🔴 URGENT:" if ticket.priority == 'urgent' else "🟠 HIGH:" if ticket.priority == 'high' else "🟡 MEDIUM:" if ticket.priority == 'medium' else "🟢 LOW:"
-            subject = f"{priority_prefix} Ticket #{ticket.id} Escalated - {ticket.location}"
-            
-            ticket_url = url_for('ticket_detail', id=ticket.id, _external=True)
-            
-            # Render HTML email template
-            html_body = render_template('email_escalation.html',
-                ticket_id=ticket.id,
-                location=ticket.location,
-                priority=ticket.priority,
-                description=ticket.description,
-                escalated_by=current_user.full_name,
-                ticket_url=ticket_url
-            )
-            
-            # Plain text fallback
-            text_body = (
-                f"Ticket #{ticket.id} has been escalated by {current_user.full_name}.\n\n"
-                f"Location: {ticket.location}\nPriority: {ticket.priority}\n\n"
-                f"Description:\n{ticket.description}\n\n"
-                f"View ticket: {ticket_url}\n\n"
-                "Please log in to the ICT Helpdesk to manage this ticket."
-            )
-            
-            msg = Message(subject, recipients=admin_emails)
-            msg.body = text_body
-            msg.html = html_body
-            mail.send(msg)
-    except Exception as e:
-        print(f"Error sending escalation emails: {e}")
-
-    flash('Ticket escalated to admins successfully. An admin will review it shortly.', 'success')
+        flash('Ticket escalated successfully. An admin will review it shortly.', 'success')
+    else:
+        if form.errors:
+            for field, errors in form.errors.items():
+                flash(f'{errors[0]}', 'danger')
+        else:
+            flash('Please provide a reason for escalation (minimum 10 characters).', 'warning')
+    
     return redirect(url_for('ticket_detail', id=id))
 
 @app.route('/ticket/<int:id>/update', methods=['POST'])
