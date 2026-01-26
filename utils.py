@@ -121,6 +121,7 @@ def get_status_badge_class(status):
     classes = {
         'open': 'bg-primary',
         'in_progress': 'bg-warning',
+        'escalated': 'bg-danger',
         'resolved': 'bg-success',
         'closed': 'bg-secondary'
     }

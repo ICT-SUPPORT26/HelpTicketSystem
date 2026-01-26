@@ -96,6 +96,26 @@
                                 </div>
                                 {% endif %}
                                 
+                                <!-- Escalation Step -->
+                                {% if ticket.status == 'escalated' %}
+                                <div class="workflow-step mb-2">
+                                    <i class="fas fa-arrow-down text-muted me-2"></i>
+                                    <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                                    <strong>Status:</strong> <span class="badge bg-danger">Escalated</span>
+                                    {% if ticket.escalated_by %}
+                                        <small class="text-danger d-block ms-4">Escalated by {{ ticket.escalated_by.full_name }}</small>
+                                    {% endif %}
+                                    {% if ticket.escalated_at %}
+                                        <small class="text-muted d-block ms-4">({{ ticket.escalated_at|format_datetime }})</small>
+                                    {% endif %}
+                                    {% if ticket.escalation_reason %}
+                                        <div class="alert alert-warning mt-2 ms-4 mb-0 py-1 px-2">
+                                            <small><strong>Reason:</strong> {{ ticket.escalation_reason }}</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                
                                 <!-- Resolution Step -->
                                 {% if ticket.status == 'resolved' %}
                                 <div class="workflow-step mb-2">
