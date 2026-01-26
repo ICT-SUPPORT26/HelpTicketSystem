@@ -548,8 +548,8 @@ def ticket_detail(id):
         update_form.category_id.data = ticket.category_id if ticket.category_id else 0
         update_form.assignees.data = [u.id for u in ticket.assignees]
 
-    # Check if intern can escalate this ticket (created by them or assigned to them)
-    can_escalate = current_user.role == 'intern' and (ticket.created_by_id == current_user.id or current_user.id in [u.id for u in ticket.assignees]) and ticket.status not in ['closed']
+    # Check if intern can escalate this ticket (created by them or assigned to them, not already escalated or closed)
+    can_escalate = current_user.role == 'intern' and (ticket.created_by_id == current_user.id or current_user.id in [u.id for u in ticket.assignees]) and ticket.status not in ['closed', 'escalated']
 
     return render_template('ticket_detail.html', ticket=ticket, comments=comments, 
                          comment_form=comment_form, update_form=update_form, can_escalate=can_escalate)
@@ -767,6 +767,11 @@ def update_ticket(id):
         # Prevent reverting closed tickets
         if old_status == 'closed' and form.status.data != 'closed':
             flash('Cannot revert a closed ticket. Closed tickets cannot be reopened.', 'danger')
+            return redirect(url_for('ticket_detail', id=id))
+
+        # Only admins can de-escalate (change escalated status to another status)
+        if old_status == 'escalated' and form.status.data != 'escalated' and current_user.role != 'admin':
+            flash('Only administrators can de-escalate tickets.', 'danger')
             return redirect(url_for('ticket_detail', id=id))
 
         # Prevent closing tickets that are not resolved
