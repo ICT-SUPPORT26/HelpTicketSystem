@@ -313,6 +313,12 @@ def admin_dashboard():
     # Import CategoryForm for the modal
     from forms import CategoryForm
     category_form = CategoryForm()
+    
+    # Get escalated tickets for admin dashboard
+    escalated_tickets = Ticket.query.options(
+        joinedload(Ticket.escalated_by),
+        joinedload(Ticket.creator)
+    ).filter(Ticket.status == 'escalated').order_by(desc(Ticket.escalated_at)).all()
 
     return render_template('admin_dashboard.html', 
                          stats=stats, 
@@ -321,7 +327,8 @@ def admin_dashboard():
                          pending_interns_count=pending_interns_count,
                          categories=categories,
                          system_categories=system_categories,
-                         category_form=category_form)
+                         category_form=category_form,
+                         escalated_tickets=escalated_tickets)
 
 @app.route('/tickets')
 @login_required
