@@ -1,4 +1,4 @@
-��alembic==1.18.0
+alembic==1.18.0
 amqp==5.3.1
 billiard==4.2.4
 blinker==1.9.0
