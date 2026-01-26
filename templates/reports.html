@@ -328,14 +328,7 @@
             </div>
             <div class="card-body">
                 {% if tickets %}
-                <div class="mb-3">
-                    <small class="text-muted">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Showing {{ tickets|length }} tickets for the selected period ({{ start_date }} to {{ end_date }})
-                        <br>
-                        Debug: Total={{ total_tickets }}, Open={{ open_tickets }}, In Progress={{ in_progress_tickets }}, Resolved={{ resolved_tickets }}, Closed={{ closed_tickets }}
-                    </small>
-                </div>
+                
                 <div class="table-responsive">
                     <table id="ticket-summary-table" class="table table-hover table-striped">
                         <thead class="table-dark">

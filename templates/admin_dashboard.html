@@ -151,7 +151,9 @@
                         <h3 class="stats-number" data-target="{{ stats.open_tickets }}">0</h3>
                         <p class="stats-label">Open Tickets</p>
                         <div class="stats-progress">
-                            <div class="progress-bar" style="width: {{ (stats.open_tickets / stats.total_tickets * 100) if stats.total_tickets > 0 else 0 }}%"></div>
+                            <div class="progress-bar" 
+                                 data-width="{{ (stats.open_tickets / stats.total_tickets * 100) if stats.total_tickets > 0 else 0 }}">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -170,7 +172,9 @@
                         <h3 class="stats-number" data-target="{{ stats.in_progress_tickets }}">0</h3>
                         <p class="stats-label">In Progress</p>
                         <div class="stats-progress">
-                            <div class="progress-bar" style="width: {{ (stats.in_progress_tickets / stats.total_tickets * 100) if stats.total_tickets > 0 else 0 }}%"></div>
+                            <div class="progress-bar" 
+                               data-width="{{ (stats.in_progress_tickets / stats.total_tickets * 100) if stats.total_tickets > 0 else 0 }}">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -189,7 +193,9 @@
                         <h3 class="stats-number" data-target="{{ stats.closed_tickets }}">0</h3>
                         <p class="stats-label">Closed</p>
                         <div class="stats-progress">
-                            <div class="progress-bar" style="width: {{ (stats.closed_tickets / stats.total_tickets * 100) if stats.total_tickets > 0 else 0 }}%"></div>
+                            <div class="progress-bar" 
+                                data-width="{{ (stats.closed_tickets / stats.total_tickets * 100) if stats.total_tickets > 0 else 0 }}">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -514,6 +520,19 @@
     70% { box-shadow: 0 0 0 10px rgba(0, 123, 255, 0); }
     100% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); }
 }
+
+.stats-progress {
+    width: 100%;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 6px;
+    transition: width 0.6s ease;
+}
+
 
 /* Status Banner */
 .status-banner {

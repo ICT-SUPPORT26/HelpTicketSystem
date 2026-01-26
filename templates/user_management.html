@@ -55,15 +55,14 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <div class="btn-group" role="group">
                                         <button type="button" class="btn btn-sm btn-outline-warning" 
-                                                onclick="showPasswordModal({{ user.id }}, '{{ user.full_name }}')" 
+                                                onclick="showPasswordModal('{{ user.full_name }}')" 
                                                 title="Change Password">
                                             <i class="fas fa-key"></i>
                                         </button>
                                         {% if user.id != current_user.id %}
                                         <form method="POST" action="{{ url_for('toggle_user_status', user_id=user.id) }}" style="display: inline;" 
-                                              onsubmit="return confirm('Are you sure you want to {{ 'deactivate' if user.is_active else 'activate' }} {{ user.full_name }}?')">
+                                              onsubmit="return confirm('Are you sure you want to')">
                                             {{ status_form.hidden_tag() }}
                                             <button type="submit" class="btn btn-sm btn-outline-{{ 'danger' if user.is_active else 'success' }}" 
                                                     title="{{ 'Deactivate' if user.is_active else 'Activate' }} User">
@@ -78,7 +77,8 @@
                                             </button>
                                         </form>
                                         {% endif %}
-                                    </div>
+                                    </div>  <div class="btn-group" role="group">
+                                  
                                 </td>
                             </tr>
                             {% endfor %}
