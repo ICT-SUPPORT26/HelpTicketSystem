@@ -78,10 +78,16 @@ class CommentForm(FlaskForm):
     is_internal = BooleanField('Internal Comment (Only visible to Admin and Interns)')
     submit = SubmitField('Add Comment')
 
+class EscalationForm(FlaskForm):
+    reason = TextAreaField('Escalation Reason', validators=[DataRequired(), Length(min=10, max=500, message='Reason must be between 10 and 500 characters')])
+    increase_priority = BooleanField('Increase Priority to Urgent')
+    submit = SubmitField('Escalate Ticket')
+
 class TicketUpdateForm(FlaskForm):
     status = SelectField('Status', choices=[
         ('open', 'Open'),
         ('in_progress', 'In Progress'),
+        ('escalated', 'Escalated'),
         ('resolved', 'Resolved'),
         ('closed', 'Closed')
     ])

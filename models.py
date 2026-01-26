@@ -66,13 +66,18 @@ class Ticket(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     location = db.Column(db.String(200), nullable=False)
     description = db.Column(Text, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default='open')  # open, in_progress, resolved, closed
+    status = db.Column(db.String(20), nullable=False, default='open')  # open, in_progress, resolved, closed, escalated
     priority = db.Column(db.String(20), nullable=False, default='medium')  # low, medium, high, urgent
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     closed_at = db.Column(db.DateTime)
     closed_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     due_date = db.Column(db.DateTime, nullable=True)
+    
+    # Escalation fields
+    escalated_at = db.Column(db.DateTime, nullable=True)
+    escalated_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    escalation_reason = db.Column(Text, nullable=True)
 
     # Foreign Keys
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
@@ -83,6 +88,7 @@ class Ticket(db.Model):
     attachments = db.relationship('Attachment', backref='ticket', lazy='dynamic', cascade='all, delete-orphan')
     assignees = db.relationship('User', secondary=ticket_assignees, back_populates='assigned_tickets', lazy='selectin')
     closed_by = db.relationship('User', foreign_keys=[closed_by_id], backref='closed_tickets')
+    escalated_by = db.relationship('User', foreign_keys=[escalated_by_id], backref='escalated_tickets')
 
     def __repr__(self):
         return f'<Ticket {self.id}: {self.location}>'
