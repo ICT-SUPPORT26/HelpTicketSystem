@@ -82,8 +82,8 @@ app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'helpticketsystem@outlook.com')
 
-# Session timeout configuration (4000 seconds of inactivity)
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=4000)
+# Session timeout configuration (3600 seconds of inactivity)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=3600)
 app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 
 # Extensions
@@ -155,8 +155,8 @@ def load_user(user_id):
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# NOTE: we set a 4000s inactivity timeout per user's request.
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=4000)
+# NOTE: we set a 3600s inactivity timeout per user's request.
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=3600)
 app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 
 # Inject commonly-used values into templates
