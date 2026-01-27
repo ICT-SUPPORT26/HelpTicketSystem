@@ -800,7 +800,8 @@ def update_ticket(id):
             return redirect(url_for('ticket_detail', id=id))
 
         # Status transition handling: Clear escalation data when moving back to in-progress
-        if (old_status == 'escalated' or ticket.status == 'escalated') and form.status.data == 'in_progress':
+        # This part handles the manual status change if the admin/intern does it explicitly
+        if old_status == 'escalated' and form.status.data == 'in_progress' and ticket.escalated_at is not None:
             ticket.escalated_at = None
             ticket.escalated_by_id = None
             ticket.escalation_reason = None
@@ -820,7 +821,7 @@ def update_ticket(id):
             # Add internal comment about de-escalation
             from models import Comment
             de_esc_comment = Comment(
-                content=f"Ticket de-escalated and reassigned to: {', '.join([u.full_name for u in ticket.assignees]) if ticket.assignees else 'Unassigned'}",
+                content=f"Ticket de-escalated by {current_user.full_name}",
                 is_internal=True,
                 ticket_id=ticket.id,
                 author_id=current_user.id
@@ -847,10 +848,38 @@ def update_ticket(id):
             new_assignee_ids = form.assignees.data or []
             
             # Automatic transition: If reassigned while escalated or open, move to in_progress
-            if (ticket.status in ['open', 'escalated']) and new_assignee_ids:
+            if (old_status in ['open', 'escalated']) and new_assignee_ids:
                 ticket.status = 'in_progress'
                 # Sync form status so subsequent logic sees the updated status
                 form.status.data = 'in_progress'
+                
+                # If it was escalated, clear the metadata and log history/comment
+                if old_status == 'escalated':
+                    ticket.escalated_at = None
+                    ticket.escalated_by_id = None
+                    ticket.escalation_reason = None
+                    
+                    # Log de-escalation
+                    from models import TicketHistory
+                    de_esc_history = TicketHistory(
+                        ticket_id=ticket.id,
+                        user_id=current_user.id,
+                        action='de-escalated',
+                        field_changed='status',
+                        old_value='escalated',
+                        new_value='in_progress'
+                    )
+                    db.session.add(de_esc_history)
+                    
+                    # Add internal comment about de-escalation
+                    from models import Comment
+                    de_esc_comment = Comment(
+                        content=f"Ticket de-escalated and reassigned to: {', '.join([u.full_name for u in User.query.filter(User.id.in_(list(new_assignee_ids))).all()]) if new_assignee_ids else 'Unassigned'}",
+                        is_internal=True,
+                        ticket_id=ticket.id,
+                        author_id=current_user.id
+                    )
+                    db.session.add(de_esc_comment)
 
             # Prevent assigning if intern/technician already has an active task
             for new_assigned_id in new_assignee_ids:
