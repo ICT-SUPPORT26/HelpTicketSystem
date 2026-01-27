@@ -804,6 +804,28 @@ def update_ticket(id):
             ticket.escalated_at = None
             ticket.escalated_by_id = None
             ticket.escalation_reason = None
+            
+            # Log de-escalation
+            from models import TicketHistory
+            de_esc_history = TicketHistory(
+                ticket_id=ticket.id,
+                user_id=current_user.id,
+                action='de-escalated',
+                field_changed='status',
+                old_value='escalated',
+                new_value='in_progress'
+            )
+            db.session.add(de_esc_history)
+            
+            # Add internal comment about de-escalation
+            from models import Comment
+            de_esc_comment = Comment(
+                content=f"Ticket de-escalated and reassigned to: {', '.join([u.full_name for u in ticket.assignees]) if ticket.assignees else 'Unassigned'}",
+                is_internal=True,
+                ticket_id=ticket.id,
+                author_id=current_user.id
+            )
+            db.session.add(de_esc_comment)
 
         ticket.status = form.status.data
         
