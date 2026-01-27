@@ -800,7 +800,7 @@ def update_ticket(id):
             return redirect(url_for('ticket_detail', id=id))
 
         # Status transition handling: Clear escalation data when moving back to in-progress
-        if old_status == 'escalated' and form.status.data == 'in_progress':
+        if (old_status == 'escalated' or ticket.status == 'escalated') and form.status.data == 'in_progress':
             ticket.escalated_at = None
             ticket.escalated_by_id = None
             ticket.escalation_reason = None
