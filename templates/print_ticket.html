@@ -115,15 +115,11 @@
     <div class="ticket-info">
         <div class="info-row">
             <div class="info-label">Status:</div>
-            <div class="info-value">
-                <span class="status-badge status-{{ ticket.status }}">{{ ticket.status.replace('_', ' ').title() }}</span>
-            </div>
+            <div class="info-value">{{ ticket.status.replace('_', ' ').title() }}</div>
         </div>
         <div class="info-row">
             <div class="info-label">Priority:</div>
-            <div class="info-value">
-                <span class="status-badge priority-{{ ticket.priority }}">{{ ticket.priority.title() }}</span>
-            </div>
+            <div class="info-value">{{ ticket.priority.title() }}</div>
         </div>
         <div class="info-row">
             <div class="info-label">Location:</div>
@@ -131,7 +127,7 @@
         </div>
         <div class="info-row">
             <div class="info-label">Category:</div>
-            <div class="info-value">{{ ticket.category.name if ticket.category else 'N/A' }}</div>
+            <div class="info-value">{{ ticket.category.name if ticket.category else 'Unclassified' }}</div>
         </div>
         <div class="info-row">
             <div class="info-label">Created by:</div>
@@ -151,22 +147,56 @@
                 {% endif %}
             </div>
         </div>
-        {% if ticket.closed_at %}
+        <div class="info-row">
+            <div class="info-label">Escalated:</div>
+            <div class="info-value">
+                {% if ticket.escalated_at %}
+                    Yes (by {{ ticket.escalated_by.full_name if ticket.escalated_by else 'N/A' }} on {{ ticket.escalated_at.strftime('%B %d, %Y at %I:%M %p') }})
+                {% else %}
+                    No
+                {% endif %}
+            </div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Reassigned to:</div>
+            <div class="info-value">
+                {% if ticket.status == 'in_progress' and ticket.assignees %}
+                    {% for user in ticket.assignees %}{{ user.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                {% else %}
+                    N/A
+                {% endif %}
+            </div>
+        </div>
         <div class="info-row">
             <div class="info-label">Closed:</div>
-            <div class="info-value">{{ ticket.closed_at.strftime('%B %d, %Y at %I:%M %p') }}</div>
+            <div class="info-value">
+                {% if ticket.closed_at %}
+                    {{ ticket.closed_at.strftime('%B %d, %Y at %I:%M %p') }}
+                {% else %}
+                    N/A
+                {% endif %}
+            </div>
         </div>
         <div class="info-row">
             <div class="info-label">Closed by:</div>
-            <div class="info-value">{{ ticket.closed_by.full_name if ticket.closed_by else 'N/A' }}</div>
+            <div class="info-value">
+                {% if ticket.closed_by %}
+                    {{ ticket.closed_by.full_name }}
+                {% else %}
+                    N/A
+                {% endif %}
+            </div>
         </div>
-        {% endif %}
-        {% if ticket.due_date %}
         <div class="info-row">
             <div class="info-label">Due date:</div>
-            <div class="info-value">{{ ticket.due_date.strftime('%B %d, %Y at %I:%M %p') }}</div>
+            <div class="info-value">
+                {% if ticket.due_date %}
+                    {{ ticket.due_date.strftime('%B %d, %Y at %I:%M %p') }}
+                {% else %}
+                    N/A
+                {% endif %}
+            </div>
         </div>
-        {% endif %}
     </div>
 
     <div class="description">
@@ -176,7 +206,7 @@
 
     {% if ticket.attachments %}
     <div class="attachments">
-        <h3>Attachments</h3>
+        <h3>Attachment</h3>
         {% for attachment in ticket.attachments %}
         <div class="attachment-item">
             • {{ attachment.original_filename }} ({{ "%.1f"|format(attachment.file_size / 1024) }} KB)
@@ -187,7 +217,7 @@
 
     {% if comments %}
     <div class="comments-section">
-        <h3>Comments History</h3>
+        <h3>Comment</h3>
         {% for comment in comments %}
         <div class="comment {% if comment.is_internal %}comment-internal{% endif %}">
             <div class="comment-header">

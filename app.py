@@ -32,6 +32,10 @@ logging.basicConfig(level=logging.INFO)
 logging.info("Running in %s mode", env)
 logging.info("Database: %s", app.config["SQLALCHEMY_DATABASE_URI"].split("@")[0] + "@***")
 
+# Session timeout configuration (180 seconds of inactivity)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=180)
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+
 # Extensions
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -86,6 +90,14 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+<<<<<<< HEAD
+=======
+# NOTE: we set a 180s inactivity timeout per user's request.
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=180)
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+
+# Inject commonly-used values into templates
+>>>>>>> 2b2960b6d0f09592acbb079b768fe160d07c507f
 @app.context_processor
 def inject_now():
     return {
