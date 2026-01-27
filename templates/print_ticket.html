@@ -151,9 +151,27 @@
                 {% endif %}
             </div>
         </div>
+        {% if ticket.escalated_at %}
+        <div class="info-row">
+            <div class="info-label">Escalated by:</div>
+            <div class="info-value">{{ ticket.escalated_by.full_name if ticket.escalated_by else 'N/A' }}</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Escalated Date:</div>
+            <div class="info-value">{{ ticket.escalated_at.strftime('%B %d, %Y at %I:%M %p') }}</div>
+        </div>
+        {% endif %}
+        {% if ticket.status == 'in_progress' and ticket.assignees %}
+        <div class="info-row">
+            <div class="info-label">Reassigned to:</div>
+            <div class="info-value">
+                {% for user in ticket.assignees %}{{ user.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+            </div>
+        </div>
+        {% endif %}
         {% if ticket.closed_at %}
         <div class="info-row">
-            <div class="info-label">Closed:</div>
+            <div class="info-label">Closed Date:</div>
             <div class="info-value">{{ ticket.closed_at.strftime('%B %d, %Y at %I:%M %p') }}</div>
         </div>
         <div class="info-row">
@@ -163,7 +181,7 @@
         {% endif %}
         {% if ticket.due_date %}
         <div class="info-row">
-            <div class="info-label">Due date:</div>
+            <div class="info-label">Due Date:</div>
             <div class="info-value">{{ ticket.due_date.strftime('%B %d, %Y at %I:%M %p') }}</div>
         </div>
         {% endif %}
