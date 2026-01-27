@@ -845,6 +845,13 @@ def update_ticket(id):
         if current_user.role == 'admin':
             # Get new assignee IDs from form (should be a list)
             new_assignee_ids = form.assignees.data or []
+            
+            # Automatic transition: If reassigned while escalated or open, move to in_progress
+            if (ticket.status in ['open', 'escalated']) and new_assignee_ids:
+                ticket.status = 'in_progress'
+                # Sync form status so subsequent logic sees the updated status
+                form.status.data = 'in_progress'
+
             # Prevent assigning if intern/technician already has an active task
             for new_assigned_id in new_assignee_ids:
                 active_task_count = Ticket.query.join(Ticket.assignees).filter(
