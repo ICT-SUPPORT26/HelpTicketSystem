@@ -131,18 +131,18 @@
         </div>
         <div class="info-row">
             <div class="info-label">Category:</div>
-            <div class="info-value">{{ ticket.category.name if ticket.category else 'N/A' }}</div>
+            <div class="info-value">{{ ticket.category.name if ticket.category else 'Unclassified' }}</div>
         </div>
         <div class="info-row">
             <div class="info-label">Created by:</div>
             <div class="info-value">{{ ticket.creator.full_name if ticket.creator else 'N/A' }}</div>
         </div>
         <div class="info-row">
-            <div class="info-label">Created:</div>
+            <div class="info-label">Created Date:</div>
             <div class="info-value">{{ ticket.created_at.strftime('%B %d, %Y at %I:%M %p') }}</div>
         </div>
         <div class="info-row">
-            <div class="info-label">Assigned to:</div>
+            <div class="info-label">Technician:</div>
             <div class="info-value">
                 {% if ticket.assignees|length == 0 %}
                     Unassigned
