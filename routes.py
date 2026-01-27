@@ -50,6 +50,7 @@ def login():
                 user = User.query.filter_by(username='215030').first()
                 if user:
                     login_user(user, remember=remember_me)
+                    session.permanent = True
                     next_page = request.args.get('next')
                     if not next_page or not next_page.startswith('/'):
                         next_page = url_for('dashboard')
@@ -65,6 +66,7 @@ def login():
             user = User.query.filter_by(username='dctraining').first()
             if user:
                 login_user(user, remember=remember_me)
+                session.permanent = True
                 next_page = request.args.get('next')
                 if not next_page or not next_page.startswith('/'):
                     next_page = url_for('dashboard')
@@ -94,6 +96,7 @@ def login():
             print(f"DEBUG: User {user.username} login SUCCESS - role={user.role}, is_approved={user.is_approved}, is_active={user.is_active}")
             
             login_user(user, remember=remember_me)
+            session.permanent = True
             next_page = request.args.get('next')
             if not next_page or not next_page.startswith('/'):
                 next_page = url_for('dashboard')

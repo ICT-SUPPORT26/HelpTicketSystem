@@ -82,6 +82,10 @@ app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'helpticketsystem@outlook.com')
 
+# Session timeout configuration (15 minutes of inactivity)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=15)
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+
 # Extensions
 db.init_app(app)
 login_manager.init_app(app)
