@@ -229,18 +229,23 @@
                             <p class="text-muted small mb-2">
                                 <i class="fas fa-map-marker-alt me-1"></i>{{ ticket.location[:40] }}{% if ticket.location|length > 40 %}...{% endif %}
                             </p>
-                            <div class="mb-3 p-2 bg-light rounded border">
-                                <h6 class="text-primary border-bottom pb-1 mb-2" style="font-size: 0.9rem;">
-                                    <i class="fas fa-align-left me-1"></i>Issue Description
+                            <div class="p-3 bg-white rounded border-start border-4 border-primary mb-3 shadow-sm">
+                                <h6 class="text-primary d-flex align-items-center mb-2" style="font-weight: 700; font-size: 0.95rem;">
+                                    <i class="fas fa-file-alt me-2"></i>ORIGINAL ISSUE REPORT
                                 </h6>
-                                <p class="text-dark mb-0" style="font-size: 0.85rem; line-height: 1.4;">{{ ticket.description }}</p>
+                                <div class="text-dark" style="font-size: 0.9rem; line-height: 1.5; background: #f8f9fa; padding: 10px; border-radius: 4px; border: 1px inset #eee;">
+                                    {{ ticket.description }}
+                                </div>
                             </div>
+
                             {% if ticket.escalation_reason %}
-                            <div class="alert alert-danger py-2 px-3 mb-3 shadow-sm border-danger">
-                                <h6 class="alert-heading mb-1" style="font-size: 0.9rem; font-weight: bold;">
-                                    <i class="fas fa-exclamation-triangle me-1"></i>Escalation Reason
+                            <div class="p-3 bg-white rounded border-start border-4 border-danger mb-3 shadow-sm">
+                                <h6 class="text-danger d-flex align-items-center mb-2" style="font-weight: 700; font-size: 0.95rem;">
+                                    <i class="fas fa-exclamation-circle me-2"></i>TECHNICIAN'S ESCALATION MESSAGE
                                 </h6>
-                                <p class="mb-0 small text-danger" style="font-weight: 500;">{{ ticket.escalation_reason }}</p>
+                                <div class="text-danger" style="font-size: 0.9rem; line-height: 1.5; background: #fff5f5; padding: 10px; border-radius: 4px; border: 1px inset #fed7d7; font-weight: 500;">
+                                    {{ ticket.escalation_reason }}
+                                </div>
                             </div>
                             {% endif %}
                             <div class="d-flex justify-content-between align-items-center">
