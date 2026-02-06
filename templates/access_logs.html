@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Access Logs</h2>
+<form method="get" class="form-inline mb-3">
+  <div class="form-group mr-2">
+    <label for="user_id">User ID</label>
+    <input type="text" name="user_id" id="user_id" value="{{ user_id or '' }}" class="form-control ml-2" />
+  </div>
+  <div class="form-group mr-2">
+    <label for="start">Start (ISO)</label>
+    <input type="text" name="start" id="start" value="{{ start or '' }}" class="form-control ml-2" />
+  </div>
+  <div class="form-group mr-2">
+    <label for="end">End (ISO)</label>
+    <input type="text" name="end" id="end" value="{{ end or '' }}" class="form-control ml-2" />
+  </div>
+  <button type="submit" class="btn btn-primary">Filter</button>
+</form>
+
+<table class="table table-striped table-sm">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Timestamp</th>
+      <th>User</th>
+      <th>Action</th>
+      <th>IP</th>
+      <th>Path</th>
+      <th>Method</th>
+      <th>User Agent</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for l in logs %}
+    <tr>
+      <td>{{ l.id }}</td>
+      <td>{{ l.timestamp }}</td>
+      <td>{% if l.user %}{{ l.user.full_name }} ({{ l.user.username }}){% else %}Anonymous{% endif %}</td>
+      <td>{{ l.action }}</td>
+      <td>{{ l.ip_address }}</td>
+      <td>{{ l.path }}</td>
+      <td>{{ l.method }}</td>
+      <td style="max-width:400px;word-break:break-word">{{ l.user_agent }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

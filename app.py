@@ -1,118 +1,179 @@
 # app.py
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import logging
-from datetime import datetime, timedelta
-
-from flask import Flask, session, redirect, url_for, flash
-from flask_login import logout_user, current_user
+from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf.csrf import CSRFProtect
-from dotenv import load_dotenv
-
-from flask_migrate import Migrate
 from extensions import db, login_manager, mail
-from config import DevelopmentConfig, ProductionConfig
+from datetime import datetime, timedelta
+from flask import session, redirect, url_for, flash
+from flask_login import logout_user, current_user
 
-# Load environment variables
-load_dotenv()
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
-# App setup
 app = Flask(__name__)
-
-env = os.environ.get("FLASK_ENV", "development").lower()
-if env == "production":
-    app.config.from_object(ProductionConfig)
-else:
-    app.config.from_object(DevelopmentConfig)
-
+app.secret_key = os.environ.get("SESSION_SECRET", "default_secret_key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Logging
-logging.basicConfig(level=logging.INFO)
-logging.info("Running in %s mode", env)
-logging.info("Database: %s", app.config["SQLALCHEMY_DATABASE_URI"].split("@")[0] + "@***")
+# -----------------------------
+# Database configuration
+# -----------------------------
+db_url = os.environ.get("DATABASE_URL")
 
-# Session timeout configuration (180 seconds of inactivity)
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=180)
-app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+if not db_url:
+    # Fallback to local/defaults
+    db_engine = os.environ.get("DB_ENGINE", os.environ.get("DB_TYPE", "mysql")).lower()
+    db_user = os.environ.get("DB_USER", "root")
+    db_password = os.environ.get("DB_PASSWORD", "")
+    db_host = os.environ.get("DB_HOST", "127.0.0.1")
+    db_port = os.environ.get("DB_PORT")
+    db_name = os.environ.get("DB_NAME")
+
+    if not db_name:
+        db_name = "helpticket_system_pg" if db_engine in ("postgres", "postgresql") else "helpticket_system"
+
+    if db_engine in ("postgres", "postgresql"):
+        driver = "postgresql+psycopg2"
+        db_port = db_port or "5432"
+
+        # Render Postgres integration
+        db_user = os.environ.get("RENDER_DB_USER", db_user)
+        db_password = os.environ.get("RENDER_DB_PASSWORD", db_password)
+        db_host = os.environ.get("RENDER_DB_HOST", db_host)
+        db_name = os.environ.get("RENDER_DB_NAME", db_name)
+
+        db_url = f"{driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=require"
+    else:
+        driver = "mysql+pymysql"
+        db_port = db_port or "3306"
+        db_url = f"{driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+
+# Mask password when logging
+def _mask_password_from_url(url: str) -> str:
+    try:
+        if "@" in url:
+            left, right = url.split("@", 1)
+            if ":" in left:
+                user, _ = left.split(":", 1)
+                return f"{user}:***@{right}"
+    except Exception:
+        pass
+    return url
+
+logging.info("Using database: %s", _mask_password_from_url(db_url))
+app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_recycle": 300,
+    "pool_pre_ping": True,
+}
+
+# Uploads
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+
+# Mail
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True') == 'True'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'helpticketsystem@outlook.com')
 
 # Extensions
 db.init_app(app)
-migrate = Migrate(app, db)
 login_manager.init_app(app)
 mail.init_app(app)
 csrf = CSRFProtect(app)
 
-# Uploads
-app.config["UPLOAD_FOLDER"] = "uploads"
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
-os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+# IMPORTANT: import models BEFORE create_all
+import models  
 
-# Session config
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=3)
-app.config["SESSION_REFRESH_EACH_REQUEST"] = True
+with app.app_context():
+    db.create_all()
 
-import models  # noqa: E402
 
-# Default accounts 
+# --- Ensure default accounts exist ---
 from models import User
 from werkzeug.security import generate_password_hash
 
 with app.app_context():
+    # Check if admin exists
     admin = User.query.filter_by(username="215030").first()
     if not admin:
         admin = User(
-            username="215030", full_name="System Administrator", email="admin@helpticketsystem.com",
-            password_hash=generate_password_hash("admin123"), role="admin", is_active=True, is_verified=True, is_approved=True,
+            username="215030",
+            full_name="System Administrator",
+            email="admin@helpticketsystem.com",
+            password_hash=generate_password_hash("admin123"),  # default password
+            role="admin",
+            is_active=True,
+            is_verified=True,
+            is_approved=True
         )
         db.session.add(admin)
         db.session.commit()
-        logging.info("Default admin created")
+        logging.info("Default admin account created: username='215030', password='admin123'")
+    else:
+        logging.info("Default admin already exists")
 
+    # Check if intern exists
     intern = User.query.filter_by(username="dctraining").first()
     if not intern:
         intern = User(
-            username="dctraining", full_name="Dctraining",
-            email="intern@helpticketsystem.com", password_hash=generate_password_hash("Dctraining2023"), 
-            role="intern", is_active=True, is_verified=True, is_approved=True,
+            username="dctraining",
+            full_name="Dctraining",
+            email="intern@helpticketsystem.com",
+            password_hash=generate_password_hash("Dctraining2023"),  # default password
+            role="intern",
+            is_active=True,
+            is_verified=True,
+            is_approved=True
         )
         db.session.add(intern)
         db.session.commit()
-        logging.info("Default intern created")
+        logging.info("Default intern account created: username='dctraining', password='Dctraining2023'")
+    else:
+        logging.info("Default intern already exists")
 
 
-login_manager.login_view = "login"
-login_manager.login_message = "Please log in to access this page."
-login_manager.login_message_category = "info"
+
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
+login_manager.login_message_category = 'info'
 
 @login_manager.user_loader
 def load_user(user_id):
+    from models import User
     return User.query.get(int(user_id))
 
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-<<<<<<< HEAD
-=======
-# NOTE: we set a 180s inactivity timeout per user's request.
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=180)
+# NOTE: we set a 3 minute inactivity timeout per user's request.
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=3)
 app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 
 # Inject commonly-used values into templates
->>>>>>> 2b2960b6d0f09592acbb079b768fe160d07c507f
 @app.context_processor
 def inject_now():
+    app.config.setdefault('TOAST_AUTOCLOSE_MS', int(os.environ.get('TOAST_AUTOCLOSE_MS', 5000)))
+    app.config.setdefault('SESSION_EXPIRY_TOAST_CLASS', os.environ.get('SESSION_EXPIRY_TOAST_CLASS', 'text-bg-warning'))
+    app.config.setdefault('SESSION_EXPIRY_REDIRECT_MS', int(os.environ.get('SESSION_EXPIRY_REDIRECT_MS', 1500)))
+
     return {
-        "now": datetime.utcnow,
-        "TOAST_AUTOCLOSE_MS": int(os.environ.get("TOAST_AUTOCLOSE_MS", 5000)),
-        "SESSION_EXPIRY_TOAST_CLASS": os.environ.get("SESSION_EXPIRY_TOAST_CLASS", "text-bg-warning"),
-        "SESSION_EXPIRY_REDIRECT_MS": int(os.environ.get("SESSION_EXPIRY_REDIRECT_MS", 1500)),
+        'now': datetime.utcnow,
+        'TOAST_AUTOCLOSE_MS': app.config['TOAST_AUTOCLOSE_MS'],
+        'SESSION_EXPIRY_TOAST_CLASS': app.config['SESSION_EXPIRY_TOAST_CLASS'],
+        'SESSION_EXPIRY_REDIRECT_MS': app.config['SESSION_EXPIRY_REDIRECT_MS'],
     }
 
 @app.before_request
 def enforce_session_timeout():
     if current_user.is_authenticated:
         now = datetime.utcnow()
-        last = session.get("last_activity")
-
+        last = session.get('last_activity')
         if last:
             try:
                 last_dt = datetime.fromisoformat(last)
@@ -121,20 +182,27 @@ def enforce_session_timeout():
 
             if now - last_dt > app.permanent_session_lifetime:
                 logout_user()
-                session.clear()
+                session.pop('last_activity', None)
                 flash("Session expired due to inactivity. Please log in again.", "warning")
-                return redirect(url_for("login"))
+                return redirect(url_for('login'))
 
-        session["last_activity"] = now.isoformat()
+        session['last_activity'] = now.isoformat()
 
 @app.after_request
 def add_no_cache_headers(response):
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    """
+    Prevent caching for authenticated pages so that after logout, 
+    browser does not show old pages on refresh.
+    """
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
 
-import routes  # noqa: E402
 
+# Import routes so they attach to app
+import routes
+
+# Register CLI commands for testing
 from cli_commands import cli as sms_cli
-app.cli.add_command(sms_cli, name="sms")
+app.cli.add_command(sms_cli, name='sms')

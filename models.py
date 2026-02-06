@@ -203,3 +203,20 @@ class ReportFile(db.Model):
 
     def __repr__(self):
         return f'<ReportFile {self.id}: {self.original_filename}>'
+
+
+class AccessLog(db.Model):
+    """Stores user access events for auditing and active session tracking."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+    action = db.Column(db.String(50), nullable=False)  # login, logout, access
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(512), nullable=True)
+    path = db.Column(db.String(255), nullable=True)
+    method = db.Column(db.String(10), nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    user = db.relationship('User', backref='access_logs')
+
+    def __repr__(self):
+        return f'<AccessLog {self.id} user={self.user_id} action={self.action} at={self.timestamp}>'

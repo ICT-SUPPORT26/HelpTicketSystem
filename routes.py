@@ -14,9 +14,9 @@ from flask_caching import Cache
 from sms_service import send_sms
 
 from app import app, db, mail
-from models import User, Ticket, Comment, Attachment, Category, Notification, NotificationSettings, ReportFile
+from models import User, Ticket, Comment, Attachment, Category, Notification, NotificationSettings, ReportFile, AccessLog
 from forms import LoginForm, RegistrationForm, TicketForm, CommentForm, TicketUpdateForm, UserManagementForm, CategoryForm, AdminUserForm, NotificationSettingsForm, PasswordChangeForm, UserStatusForm
-from utils import send_notification_email, get_dashboard_stats
+from utils import send_notification_email, get_dashboard_stats, send_intern_approval_pending_email, send_intern_approval_confirmation_email, send_intern_approval_sms
 from notification_utils import NotificationManager
 from background_tasks import generate_report_data
 
@@ -50,6 +50,14 @@ def login():
                 user = User.query.filter_by(username='215030').first()
                 if user:
                     login_user(user, remember=remember_me)
+                    # record login access
+                    try:
+                        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+                    except Exception:
+                        ip = None
+                    ua = request.headers.get('User-Agent')
+                    db.session.add(AccessLog(user_id=user.id, action='login', ip_address=ip, user_agent=ua, path=request.path, method=request.method))
+                    db.session.commit()
                     session.permanent = True
                     next_page = request.args.get('next')
                     if not next_page or not next_page.startswith('/'):
@@ -66,6 +74,14 @@ def login():
             user = User.query.filter_by(username='dctraining').first()
             if user:
                 login_user(user, remember=remember_me)
+                # record login access
+                try:
+                    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+                except Exception:
+                    ip = None
+                ua = request.headers.get('User-Agent')
+                db.session.add(AccessLog(user_id=user.id, action='login', ip_address=ip, user_agent=ua, path=request.path, method=request.method))
+                db.session.commit()
                 session.permanent = True
                 next_page = request.args.get('next')
                 if not next_page or not next_page.startswith('/'):
@@ -96,6 +112,14 @@ def login():
             print(f"DEBUG: User {user.username} login SUCCESS - role={user.role}, is_approved={user.is_approved}, is_active={user.is_active}")
             
             login_user(user, remember=remember_me)
+            # record login access
+            try:
+                ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+            except Exception:
+                ip = None
+            ua = request.headers.get('User-Agent')
+            db.session.add(AccessLog(user_id=user.id, action='login', ip_address=ip, user_agent=ua, path=request.path, method=request.method))
+            db.session.commit()
             session.permanent = True
             next_page = request.args.get('next')
             if not next_page or not next_page.startswith('/'):
@@ -111,7 +135,11 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
-    # Explicitly log out and clear session
+    # Capture current user id for logging, then explicitly log out and clear session
+    try:
+        _uid = current_user.get_id()
+    except Exception:
+        _uid = None
     logout_user()
     session.clear()
     session.modified = True
@@ -150,6 +178,18 @@ def logout():
     resp.headers['Expires'] = '0'
 
     flash('You have been logged out.', 'info')
+    # record logout access
+    try:
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    except Exception:
+        ip = None
+    ua = request.headers.get('User-Agent')
+    try:
+        db.session.add(AccessLog(user_id=_uid, action='logout', ip_address=ip, user_agent=ua, path=request.path, method=request.method))
+        db.session.commit()
+    except Exception:
+        # don't block logout on logging failure
+        db.session.rollback()
     return resp
 
 
@@ -160,6 +200,40 @@ def keepalive():
     session.permanent = True
     session['last_activity'] = datetime.utcnow().isoformat()
     return jsonify({'ok': True})
+
+
+@app.route('/access_logs')
+@login_required
+def access_logs():
+    # Admin-only view for access logs
+    if not hasattr(current_user, 'role') or current_user.role != 'admin':
+        abort(403)
+
+    start = request.args.get('start')
+    end = request.args.get('end')
+    user_id = request.args.get('user_id')
+
+    q = AccessLog.query.order_by(AccessLog.timestamp.desc())
+    if user_id:
+        try:
+            q = q.filter(AccessLog.user_id == int(user_id))
+        except Exception:
+            pass
+    if start:
+        try:
+            sdt = datetime.fromisoformat(start)
+            q = q.filter(AccessLog.timestamp >= sdt)
+        except Exception:
+            pass
+    if end:
+        try:
+            edt = datetime.fromisoformat(end)
+            q = q.filter(AccessLog.timestamp <= edt)
+        except Exception:
+            pass
+
+    logs = q.limit(1000).all()
+    return render_template('access_logs.html', logs=logs, start=start, end=end, user_id=user_id)
 
 from flask_wtf.csrf import CSRFError
 
@@ -252,6 +326,8 @@ def register():
         # Notify all admins about new intern registration (users are auto-approved)
         if form.role.data == 'intern':
             NotificationManager.notify_new_user_registration(user)
+            # Send approval pending email to intern
+            send_intern_approval_pending_email(user)
         
         if form.role.data == 'user':
             if email_sent:
@@ -302,10 +378,9 @@ def admin_dashboard():
         func.count(User.id).label('count')
     ).filter(User.role != None).group_by(User.role).all()
 
-    # Get pending intern approvals count
+    # Get pending intern approvals count (interns waiting for admin approval)
     pending_interns_count = User.query.filter_by(
         is_approved=False,
-        is_verified=True,
         role='intern'
     ).count()
 
@@ -819,7 +894,6 @@ def update_ticket(id):
             db.session.add(de_esc_history)
             
             # Add internal comment about de-escalation
-            from models import Comment
             de_esc_comment = Comment(
                 content=f"Ticket de-escalated by {current_user.full_name}",
                 is_internal=True,
@@ -872,7 +946,6 @@ def update_ticket(id):
                     db.session.add(de_esc_history)
                     
                     # Add internal comment about de-escalation
-                    from models import Comment
                     de_esc_comment = Comment(
                         content=f"Ticket de-escalated and reassigned to: {', '.join([u.full_name for u in User.query.filter(User.id.in_(list(new_assignee_ids))).all()]) if new_assignee_ids else 'Unassigned'}",
                         is_internal=True,
@@ -900,13 +973,20 @@ def update_ticket(id):
             # Send SMS to newly assigned staff (those not previously assigned)
             newly_assigned_ids = new_assigned_set - old_assignee_ids
             from sms_service import send_sms
+            sms_sent_count = 0
             for newly_assigned_id in newly_assigned_ids:
                 assignee = User.query.get(newly_assigned_id)
                 assignee_phone = getattr(assignee, 'phone_number', None) if assignee else None
                 if assignee and assignee_phone:
-                    send_sms(
+                    success = send_sms(
                         assignee_phone,
                         f"You have been assigned ticket #{ticket.id} - {ticket.location}. Priority: {ticket.priority}. Please review.")
+                    if success:
+                        sms_sent_count += 1
+            
+            # Show SMS confirmation message
+            if sms_sent_count > 0:
+                flash(f'✓ SMS notification sent to {sms_sent_count} assignee{"s" if sms_sent_count != 1 else ""}', 'success')
 
             # Set due_date if assigned and not already set
             if new_assignee_ids and not ticket.due_date:
@@ -1548,6 +1628,12 @@ def create_user():
         # Auto-verify all accounts created by admin
         is_verified = True
         verification_token = None
+        
+        # For interns, set is_approved=False (require admin approval to activate)
+        # For other roles, set is_approved=True
+        is_approved = form.role.data != 'intern'
+        is_active = form.role.data != 'intern'
+        
         user = User(
             username=form.username.data,
             email=form.email.data,
@@ -1555,7 +1641,9 @@ def create_user():
             password_hash=generate_password_hash(form.password.data),
             role=form.role.data,
             is_verified=is_verified,
-            verification_token=verification_token
+            verification_token=verification_token,
+            is_approved=is_approved,
+            is_active=is_active
         )
         db.session.add(user)
         db.session.commit()
@@ -2022,9 +2110,9 @@ def intern_management():
         abort(403)
     
     # Get all interns with different statuses
+    # Pending: interns waiting for admin approval (regardless of email verification)
     pending_interns = User.query.filter_by(
         is_approved=False,
-        is_verified=True,
         role='intern'
     ).order_by(User.created_at.desc()).all()
     
@@ -2118,6 +2206,18 @@ def approve_user_account(user_id):
         NotificationManager.notify_user_approved(user, current_user)
     except:
         pass  # Don't fail if notification fails
+    
+    # Send approval confirmation email
+    try:
+        send_intern_approval_confirmation_email(user, current_user)
+    except Exception as e:
+        print(f"Error sending approval email: {e}")
+    
+    # Send approval confirmation SMS (for those without internet)
+    try:
+        send_intern_approval_sms(user)
+    except Exception as e:
+        print(f"Error sending approval SMS: {e}")
     
     flash(f'{user.full_name} (Intern) has been approved and can now login', 'success')
     return redirect(url_for('pending_users'))

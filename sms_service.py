@@ -15,6 +15,10 @@ MOVESMS_USERNAME = os.environ.get("MOVESMS_USERNAME")
 MOVESMS_APIKEY = os.environ.get("MOVESMS_APIKEY")
 MOVESMS_SENDER_ID = os.environ.get("MOVESMS_SENDER_ID", "HELPDESK")
 MOVESMS_BASE_URL = os.environ.get("MOVESMS_BASE_URL", "https://sms.movesms.co.ke/api/compose")
+SMS_PROVIDER = os.environ.get("SMS_PROVIDER", None)
+TEXTBELT_KEY = os.environ.get("TEXTBELT_KEY", "textbelt")
+TEXTBELT_URL = os.environ.get("TEXTBELT_URL", "https://textbelt.com/text")
+TEXTBELT_KEY = os.environ.get("TEXTBELT_KEY", "textbelt")
 
 
 def _normalize_phone(phone: str) -> Optional[str]:
@@ -48,25 +52,61 @@ def send_sms(
     phone_number: str,
     message: str,
     sender: Optional[str] = None,
+    provider: Optional[str] = None,
     timeout: int = 10,
     max_retries: int = 3,
     backoff_factor: float = 0.5,
 ) -> bool:
-    """Send SMS via MoveSMS with optional retries/backoff.
+    """Send SMS via a configured provider with optional retries/backoff.
 
     - `phone_number` may be in several common formats; it will be normalized.
-    - `sender` overrides env `MOVESMS_SENDER_ID` for this message.
+    - `sender` overrides env `MOVESMS_SENDER_ID` for MoveSMS messages.
+    - `provider` optionally overrides `SMS_PROVIDER` for per-message routing (e.g. 'textbelt' or 'movesms').
     - `max_retries` controls how many attempts (including the first).
     - `backoff_factor` controls exponential backoff: sleep = backoff_factor * (2 ** (attempt-1)).
     - Returns True on (likely) success, False otherwise.
     """
+    # Select provider: function arg -> env -> autodetect
+    provider = (provider or SMS_PROVIDER) or ("movesms" if MOVESMS_USERNAME and MOVESMS_APIKEY else "textbelt")
+
     normalized = _normalize_phone(phone_number)
     if not normalized:
         logger.warning("Invalid phone number format, will not send SMS: %s", phone_number)
         return False
+    # Provider-specific implementations
+    if provider == "textbelt":
+        # Textbelt expects a leading + in the phone number
+        phone_for_textbelt = "+" + normalized
+        if requests is None:
+            logger.warning("`requests` library is not installed; SMS cannot be sent via Textbelt.")
+            return False
+        payload = {"phone": phone_for_textbelt, "message": message, "key": TEXTBELT_KEY}
+        logger.debug("Sending SMS via Textbelt to %s (key=%s...)", phone_for_textbelt, (TEXTBELT_KEY[:4] + '...') if TEXTBELT_KEY else None)
+        try:
+            resp = requests.post(TEXTBELT_URL, data=payload, timeout=timeout)
+            data = None
+            try:
+                data = resp.json()
+            except Exception:
+                pass
+            success = False
+            if data is not None:
+                success = data.get("success", False)
+            else:
+                success = getattr(resp, "status_code", 0) == 200
+            if success:
+                logger.info("Textbelt SMS sent to %s", phone_for_textbelt)
+                return True
+            logger.warning("Textbelt SMS failed to %s: %s", phone_for_textbelt, getattr(resp, 'text', data))
+            return False
+        except requests.exceptions.RequestException as exc:
+            logger.warning("Textbelt request error to %s: %s", phone_for_textbelt, exc)
+            return False
 
+    # Default to MoveSMS behavior
+    # Ensure MoveSMS credentials are present
     if not MOVESMS_USERNAME or not MOVESMS_APIKEY:
-        logger.warning("MoveSMS credentials missing (MOVESMS_USERNAME/MOVESMS_APIKEY). SMS not sent.")
+        logger.warning("MoveSMS credentials missing (MOVESMS_USERNAME/MOVESMS_APIKEY). SMS not sent via MoveSMS.")
         return False
 
     payload = {
@@ -86,7 +126,7 @@ def send_sms(
     if masked_payload.get('api_key'):
         masked_payload['api_key'] = masked_payload['api_key'][:4] + '...'  # partial mask
 
-    logger.debug("SMS Service Config: username=%s, sender=%s, base_url=%s", MOVESMS_USERNAME, sender or MOVESMS_SENDER_ID, MOVESMS_BASE_URL)
+    logger.debug("SMS Service Config: provider=%s username=%s, sender=%s, base_url=%s", provider, MOVESMS_USERNAME, sender or MOVESMS_SENDER_ID, MOVESMS_BASE_URL)
     logger.debug("Attempting to send SMS to %s. Payload: %s", normalized, masked_payload)
 
     attempt = 0
@@ -123,3 +163,12 @@ def send_sms(
                 continue
             logger.exception("SMS request error for %s on final attempt: %s", normalized, exc)
             return False
+
+def send_sms_via_textbelt(phone, message):
+    resp = requests.post("https://textbelt.com/text", data={
+        "phone": phone,
+        "message": message,
+        "key": TEXTBELT_KEY
+    }, timeout=10)
+    data = resp.json()
+    return data.get("success", False)

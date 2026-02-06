@@ -71,6 +71,128 @@ def send_notification_email(ticket, event_type):
     except Exception as e:
         print(f"Error sending email: {e}")
 
+
+def send_intern_approval_pending_email(user):
+    """Send email to intern when registration is pending admin approval."""
+    try:
+        if not user or user.role != 'intern':
+            return False
+        
+        if not current_app.config.get('MAIL_USERNAME'):
+            print("Mail not configured, skipping intern approval email")
+            return False
+        
+        subject = "Account Approval Pending - ICT Helpdesk"
+        template = f"""
+Hello {user.full_name},
+
+Thank you for registering as an intern with the ICT Helpdesk system!
+
+Your email has been verified successfully. However, your account is now pending admin approval. 
+An administrator will review your registration and activate your account shortly.
+
+You will receive another email once your account has been approved and you can log in.
+
+In the meantime, if you have any questions, please contact the system administrator.
+
+Best regards,
+ICT Helpdesk Team
+        """
+        
+        msg = Message(subject, recipients=[user.email])
+        msg.body = template
+        mail.send(msg)
+        print(f"Intern approval pending email sent to {user.email}")
+        return True
+    except Exception as e:
+        print(f"Error sending intern approval pending email: {e}")
+        return False
+
+
+def send_intern_approval_confirmation_email(user, approved_by_user):
+    """Send email to intern when their account has been approved by admin."""
+    try:
+        if not user or user.role != 'intern':
+            return False
+        
+        if not current_app.config.get('MAIL_USERNAME'):
+            print("Mail not configured, skipping intern approval confirmation email")
+            return False
+        
+        subject = "Account Approved - Welcome to ICT Helpdesk"
+        template = f"""
+Hello {user.full_name},
+
+Great news! Your account has been approved and is now active.
+
+You can now log in to the ICT Helpdesk system using your credentials:
+- Username: {user.username}
+- Email: {user.email}
+
+Approved by: {approved_by_user.full_name}
+
+You can now access the system and start working on assigned tickets.
+
+If you have any questions or need assistance, please contact the system administrator.
+
+Best regards,
+ICT Helpdesk Team
+        """
+        
+        msg = Message(subject, recipients=[user.email])
+        msg.body = template
+        mail.send(msg)
+        print(f"Intern approval confirmation email sent to {user.email}")
+        return True
+    except Exception as e:
+        print(f"Error sending intern approval confirmation email: {e}")
+        return False
+
+
+def send_intern_approval_sms(user):
+    """Send SMS to intern when their account has been approved by admin."""
+    try:
+        if not user or user.role != 'intern':
+            return False
+        
+        phone = getattr(user, 'phone_number', None)
+        if not phone:
+            print(f"No phone number for intern {user.username}, skipping SMS")
+            return False
+        
+        from sms_service import send_sms
+        message = f"Your ICT Helpdesk account has been approved! You can now log in with username: {user.username}. Visit the system to start accepting tickets."
+        
+        result = send_sms(phone, message)
+        if result:
+            print(f"Intern approval SMS sent to {phone}")
+        else:
+            print(f"Failed to send approval SMS to {phone}")
+        return result
+    except Exception as e:
+        print(f"Error sending intern approval SMS: {e}")
+        return False
+
+
+def send_ticket_assigned_sms(assignee, ticket):
+    """Send SMS to assignee when they are assigned a ticket."""
+    try:
+        phone = getattr(assignee, 'phone_number', None)
+        if not phone:
+            return False
+        
+        from sms_service import send_sms
+        message = f"Ticket #{ticket.id} assigned: {ticket.location[:30]}... Priority: {ticket.priority}"
+        
+        result = send_sms(phone, message)
+        if result:
+            print(f"Ticket assignment SMS sent to {phone}")
+        else:
+            print(f"Failed to send ticket assignment SMS to {phone}")
+        return result
+    except Exception as e:
+        print(f"Error sending ticket assignment SMS: {e}")
+        return False
 def get_dashboard_stats(user):
     """Get dashboard statistics based on user role"""
     from models import Ticket, User
