@@ -10,12 +10,53 @@ class BaseConfig:
 
 
 class DevelopmentConfig(BaseConfig):
+    # Allow overriding via DATABASE_URL env var; otherwise build from parts
+    DB_USER = os.environ.get("DB_USER", "root")
+    DB_PASS = os.environ.get("DB_PASS", "Jace102020.")
+    DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
+    DB_PORT = os.environ.get("DB_PORT", "3307")
+    DB_NAME = os.environ.get("DB_NAME", "helpticket_system")
     SQLALCHEMY_DATABASE_URI = (
         os.environ.get("DATABASE_URL")
-        or "postgresql+psycopg2://postgres:password@localhost:5432/helpticket_system_pg"
+        or f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     )
     DEBUG = True
 
+    # If one is using XAMPP, Then onw would uncomment as follows:
+    #class DevelopmentConfig(BaseConfig):
+    # Allow overriding via DATABASE_URL env var; otherwise build from parts
+    #DB_USER = os.environ.get("DB_USER", "root")
+    #DB_PASS = os.environ.get("DB_PASS", "")  # empty string since no password
+    #DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
+    #DB_PORT = os.environ.get("DB_PORT", "3306")  # default XAMPP MySQL port
+    #DB_NAME = os.environ.get("DB_NAME", "helpticket_system")
+    #SQLALCHEMY_DATABASE_URI = (
+     #   os.environ.get("DATABASE_URL")
+     #  or f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    #)
+    #DEBUG = True
+
 class ProductionConfig(BaseConfig):
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
+    DB_USER = os.environ.get("DB_USER", "root")
+    DB_PASS = os.environ.get("DB_PASS", "Jace102020.")
+    DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
+    DB_PORT = os.environ.get("DB_PORT", "3307")
+    DB_NAME = os.environ.get("DB_NAME", "helpticket_system")
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL") or (
+        f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    )
     DEBUG = False
+
+     # If one is using XAMPP, Then onw would uncomment as follows:
+    #class DevelopmentConfig(BaseConfig):
+    # Allow overriding via DATABASE_URL env var; otherwise build from parts
+    #DB_USER = os.environ.get("DB_USER", "root")
+    #DB_PASS = os.environ.get("DB_PASS", "")  # empty string since no password
+    #DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
+    #DB_PORT = os.environ.get("DB_PORT", "3306")  # default XAMPP MySQL port
+    #DB_NAME = os.environ.get("DB_NAME", "helpticket_system")
+    #SQLALCHEMY_DATABASE_URI = (
+     #   os.environ.get("DATABASE_URL")
+     #  or f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    #)
+    #DEBUG = True

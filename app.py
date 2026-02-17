@@ -7,6 +7,7 @@ from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf.csrf import CSRFProtect
 from extensions import db, login_manager, mail
+from sqlalchemy import create_engine
 from datetime import datetime, timedelta
 from flask import session, redirect, url_for, flash
 from flask_login import logout_user, current_user
@@ -18,18 +19,33 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "default_secret_key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
+# Mask password when logging
+def _mask_password_from_url(url: str) -> str:
+    try:
+        if "@" in url:
+            left, right = url.split("@", 1)
+            if ":" in left:
+                user, _ = left.split(":", 1)
+                return f"{user}:***@{right}"
+    except Exception:
+        pass
+    return url
+
 # -----------------------------
 # Database configuration
 # -----------------------------
 db_url = os.environ.get("DATABASE_URL")
 
 if not db_url:
-    # Fallback to local/defaults
+    # Fallback to local/defaults and build candidate URLs (try 3307 first, then 3306)
     db_engine = os.environ.get("DB_ENGINE", os.environ.get("DB_TYPE", "mysql")).lower()
     db_user = os.environ.get("DB_USER", "root")
-    db_password = os.environ.get("DB_PASSWORD", "")
+    db_password = os.environ.get("DB_PASSWORD", os.environ.get("DB_PASS", ""))
+    # If no password provided and user is root, fall back to the requested default
+    if db_user == "root" and not db_password:
+        db_password = os.environ.get("DB_PASS") or os.environ.get("DB_PASSWORD") or "Jace102020."
     db_host = os.environ.get("DB_HOST", "127.0.0.1")
-    db_port = os.environ.get("DB_PORT")
+    db_port_env = os.environ.get("DB_PORT")
     db_name = os.environ.get("DB_NAME")
 
     if not db_name:
@@ -37,7 +53,7 @@ if not db_url:
 
     if db_engine in ("postgres", "postgresql"):
         driver = "postgresql+psycopg2"
-        db_port = db_port or "5432"
+        db_port = db_port_env or "5432"
 
         # Render Postgres integration
         db_user = os.environ.get("RENDER_DB_USER", db_user)
@@ -48,8 +64,32 @@ if not db_url:
         db_url = f"{driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=require"
     else:
         driver = "mysql+pymysql"
-        db_port = db_port or "3306"
-        db_url = f"{driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+        # Prefer 3307, but allow DB_PORT env to override; then fall back to 3306
+        preferred_ports = []
+        if db_port_env:
+            preferred_ports.append(db_port_env)
+        # ensure 3307 is tried before 3306
+        for p in ("3307", "3306"):
+            if p not in preferred_ports:
+                preferred_ports.append(p)
+
+        candidate_urls = [f"{driver}://{db_user}:{db_password}@{db_host}:{p}/{db_name}" for p in preferred_ports]
+
+        # Try candidate URLs and pick the first that succeeds to connect
+        selected = None
+        for candidate in candidate_urls:
+            try:
+                logging.info("Attempting DB connection test to: %s", _mask_password_from_url(candidate))
+                eng = create_engine(candidate, pool_pre_ping=True)
+                conn = eng.connect()
+                conn.close()
+                selected = candidate
+                logging.info("DB connection succeeded: %s", _mask_password_from_url(candidate))
+                break
+            except Exception as e:
+                logging.warning("DB connection failed for %s: %s", _mask_password_from_url(candidate), e)
+
+        db_url = selected or candidate_urls[0]
 
 # Mask password when logging
 def _mask_password_from_url(url: str) -> str:
@@ -71,7 +111,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 
 # Uploads
-app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
 # Mail

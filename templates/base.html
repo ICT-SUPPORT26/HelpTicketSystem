@@ -234,11 +234,12 @@
 
                         // Show toast and auto-hide using configured delay
                         try {
-                            const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: TOAST_AUTOHIDE_MS });
-                            bsToast.show();
-                        } catch (e) {
-                            console.debug('Toast creation failed', e);
-                        }
+                                const toastDelay = (typeof TOAST_AUTOHIDE_MS !== 'undefined') ? TOAST_AUTOHIDE_MS : 5000;
+                                const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: toastDelay });
+                                bsToast.show();
+                            } catch (e) {
+                                console.debug('Toast creation failed', e);
+                            }
 
                         // Remove original alert from the DOM
                         alert.remove();

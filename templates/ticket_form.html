@@ -223,41 +223,47 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Initialize on page load
-    updateSubunitOptions();
+    if (departmentSelect) {
+        updateSubunitOptions();
+    }
 
     // Category change for MIS subcategory
     const categorySelect = document.getElementById('category_id');
     const misSubcategoryGroup = document.getElementById('mis-subcategory-group');
-    categorySelect.addEventListener('change', function() {
-        const selectedOption = categorySelect.options[categorySelect.selectedIndex];
-        if (selectedOption.text === 'University MIS System Issue') {
-            misSubcategoryGroup.style.display = '';
-        } else {
-            misSubcategoryGroup.style.display = 'none';
-        }
-    });
+    if (categorySelect) {
+        categorySelect.addEventListener('change', function() {
+            const selectedOption = categorySelect.options[categorySelect.selectedIndex];
+            if (selectedOption && selectedOption.text === 'University MIS System Issue') {
+                misSubcategoryGroup && (misSubcategoryGroup.style.display = '');
+            } else {
+                misSubcategoryGroup && (misSubcategoryGroup.style.display = 'none');
+            }
+        });
+    }
 
     // Drag-and-drop file upload
     const dropArea = document.getElementById('drop-area');
     const fileInput = document.getElementById('attachments');
     const filePreview = document.getElementById('file-preview');
     
-    dropArea.addEventListener('click', () => fileInput.click());
-    dropArea.addEventListener('dragover', (e) => {
+    dropArea && dropArea.addEventListener('click', () => fileInput && fileInput.click());
+    dropArea && dropArea.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropArea.classList.add('bg-uon-gold');
     });
-    dropArea.addEventListener('dragleave', (e) => {
+    dropArea && dropArea.addEventListener('dragleave', (e) => {
         e.preventDefault();
         dropArea.classList.remove('bg-uon-gold');
     });
-    dropArea.addEventListener('drop', (e) => {
+    dropArea && dropArea.addEventListener('drop', (e) => {
         e.preventDefault();
         dropArea.classList.remove('bg-uon-gold');
-        fileInput.files = e.dataTransfer.files;
-        showFilePreview();
+        if (fileInput) {
+            fileInput.files = e.dataTransfer.files;
+            showFilePreview();
+        }
     });
-    fileInput.addEventListener('change', showFilePreview);
+    fileInput && fileInput.addEventListener('change', showFilePreview);
     
     function showFilePreview() {
         filePreview.innerHTML = '';
@@ -284,66 +290,70 @@ document.addEventListener('DOMContentLoaded', function() {
     const descList = document.getElementById('desc-autocomplete-list');
     let descHistory = [];
     
-    fetch("/api/ticket_descriptions")
-        .then(res => res.json())
-        .then(data => { descHistory = data; });
-    
-    descInput.addEventListener('input', function() {
-        const val = this.value.toLowerCase();
-        descList.innerHTML = '';
-        if (val.length < 2) return;
-        const matches = descHistory.filter(d => d.toLowerCase().includes(val)).slice(0, 5);
-        matches.forEach(match => {
-            const item = document.createElement('button');
-            item.type = 'button';
-            item.className = 'list-group-item list-group-item-action';
-            item.textContent = match;
-            item.onclick = () => {
-                descInput.value = match;
-                descList.innerHTML = '';
-            };
-            descList.appendChild(item);
-        });
-    });
-    
-    document.addEventListener('click', function(e) {
-        if (!descList.contains(e.target) && e.target !== descInput) {
+    if (descInput && descList) {
+        fetch("/api/ticket_descriptions")
+            .then(res => res.json())
+            .then(data => { descHistory = data; });
+        
+        descInput.addEventListener('input', function() {
+            const val = this.value.toLowerCase();
             descList.innerHTML = '';
-        }
-    });
+            if (val.length < 2) return;
+            const matches = descHistory.filter(d => d.toLowerCase().includes(val)).slice(0, 5);
+            matches.forEach(match => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action';
+                item.textContent = match;
+                item.onclick = () => {
+                    descInput.value = match;
+                    descList.innerHTML = '';
+                };
+                descList.appendChild(item);
+            });
+        });
+        
+        document.addEventListener('click', function(e) {
+            if (!descList.contains(e.target) && e.target !== descInput) {
+                descList.innerHTML = '';
+            }
+        });
+    }
 
     // --- Autocomplete for MIS Subcategory ---
     const misInput = document.getElementById('mis_subcategory');
     const misList = document.getElementById('mis-autocomplete-list');
     let misHistory = [];
     
-    fetch("/api/mis_subcategories")
-        .then(res => res.json())
-        .then(data => { misHistory = data; });
-    
-    misInput.addEventListener('input', function() {
-        const val = this.value.toLowerCase();
-        misList.innerHTML = '';
-        if (val.length < 1) return;
-        const matches = misHistory.filter(d => d.toLowerCase().includes(val)).slice(0, 5);
-        matches.forEach(match => {
-            const item = document.createElement('button');
-            item.type = 'button';
-            item.className = 'list-group-item list-group-item-action';
-            item.textContent = match;
-            item.onclick = () => {
-                misInput.value = match;
-                misList.innerHTML = '';
-            };
-            misList.appendChild(item);
-        });
-    });
-    
-    document.addEventListener('click', function(e) {
-        if (!misList.contains(e.target) && e.target !== misInput) {
+    if (misInput && misList) {
+        fetch("/api/mis_subcategories")
+            .then(res => res.json())
+            .then(data => { misHistory = data; });
+        
+        misInput.addEventListener('input', function() {
+            const val = this.value.toLowerCase();
             misList.innerHTML = '';
-        }
-    });
+            if (val.length < 1) return;
+            const matches = misHistory.filter(d => d.toLowerCase().includes(val)).slice(0, 5);
+            matches.forEach(match => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action';
+                item.textContent = match;
+                item.onclick = () => {
+                    misInput.value = match;
+                    misList.innerHTML = '';
+                };
+                misList.appendChild(item);
+            });
+        });
+        
+        document.addEventListener('click', function(e) {
+            if (!misList.contains(e.target) && e.target !== misInput) {
+                misList.innerHTML = '';
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

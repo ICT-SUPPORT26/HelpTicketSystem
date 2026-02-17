@@ -636,8 +636,13 @@ def ticket_detail(id):
     # Check if intern can escalate this ticket (created by them or assigned to them, not already escalated or closed)
     can_escalate = current_user.role == 'intern' and (ticket.created_by_id == current_user.id or current_user.id in [u.id for u in ticket.assignees]) and ticket.status not in ['closed', 'escalated']
 
-    return render_template('ticket_detail.html', ticket=ticket, comments=comments, 
-                         comment_form=comment_form, update_form=update_form, can_escalate=can_escalate)
+    # Provide categories explicitly to the template to ensure the select options
+    # are rendered even if WTForms choices were not populated for any reason.
+    categories = Category.query.order_by(Category.name).all()
+
+    return render_template('ticket_detail.html', ticket=ticket, comments=comments,
+                         comment_form=comment_form, update_form=update_form,
+                         can_escalate=can_escalate, categories=categories)
 
 @app.route('/ticket/<int:id>/comment', methods=['POST'])
 @login_required

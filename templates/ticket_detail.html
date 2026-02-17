@@ -351,7 +351,16 @@
                     
                     <div class="mb-3" id="categoryField">
                         {{ update_form.category_id.label(class="form-label") }}
-                        {{ update_form.category_id(class="form-control", id="categorySelect") }}
+                        {% if categories is defined %}
+                            <select id="categorySelect" name="category_id" class="form-control">
+                                <option value="0">Unclassified</option>
+                                {% for c in categories %}
+                                    <option value="{{ c.id }}" {% if update_form and update_form.category_id.data == c.id %}selected{% endif %}>{{ c.name }}</option>
+                                {% endfor %}
+                            </select>
+                        {% else %}
+                            {{ update_form.category_id(class="form-control", id="categorySelect") }}
+                        {% endif %}
                         {% if current_user.role == 'intern' %}
                         <div class="form-text">
                             <small class="text-warning" id="categoryHint">Category is required when resolving the ticket.</small>
