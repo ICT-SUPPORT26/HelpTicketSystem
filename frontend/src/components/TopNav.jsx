@@ -9,6 +9,7 @@ const breadcrumbs = {
   '/tickets/new': 'New Ticket',
   '/admin': 'Admin Dashboard',
   '/admin/users': 'User Management',
+  '/admin/interns': 'Intern Management',
   '/reports': 'Reports',
   '/analytics': 'Analytics',
   '/profile': 'My Profile',

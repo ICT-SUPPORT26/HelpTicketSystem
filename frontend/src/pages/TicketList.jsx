@@ -48,7 +48,7 @@ export default function TicketList() {
   const setParam = (key, value) => {
     const p = Object.fromEntries(searchParams.entries())
     if (value) p[key] = value; else delete p[key]
-    p.page = '1'
+    if (key !== 'page') p.page = '1'
     setSearchParams(p)
   }
 

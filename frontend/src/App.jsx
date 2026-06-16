@@ -11,6 +11,7 @@ import TicketList from './pages/TicketList'
 import TicketDetail from './pages/TicketDetail'
 import TicketForm from './pages/TicketForm'
 import UserManagement from './pages/UserManagement'
+import InternManagement from './pages/InternManagement'
 import Reports from './pages/Reports'
 import Analytics from './pages/Analytics'
 import Profile from './pages/Profile'
@@ -36,6 +37,7 @@ export default function App() {
 
             <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
             <Route path="/admin/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
+            <Route path="/admin/interns" element={<AdminRoute><InternManagement /></AdminRoute>} />
             <Route path="/reports" element={<StaffRoute><Reports /></StaffRoute>} />
             <Route path="/analytics" element={<AdminRoute><Analytics /></AdminRoute>} />
           </Route>

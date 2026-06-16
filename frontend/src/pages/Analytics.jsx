@@ -34,6 +34,10 @@ export default function Analytics() {
     { name: 'Escalated', value: reportStats.escalated },
   ].filter(d => d.value > 0) : []
 
+  const topCategories = reportStats?.by_category
+    ? [...reportStats.by_category].sort((a, b) => b.count - a.count).slice(0, 8)
+    : []
+
   return (
     <div>
       <div className="page-header">
@@ -69,7 +73,7 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* SLA Gauge */}
+      {/* Row 1: SLA + Status Distribution */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
         <div className="card">
           <div className="card-header"><h3>SLA Compliance</h3></div>
@@ -93,7 +97,8 @@ export default function Analytics() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
-                  <Pie data={statusData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie data={statusData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
                     {statusData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
                   <Tooltip />
@@ -104,23 +109,48 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* Assignee Workload */}
-      {data.assignee_workload?.length > 0 && (
+      {/* Row 2: Top Categories + Assignee Workload */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+        {/* Top Categories */}
         <div className="card">
-          <div className="card-header"><h3>Staff Workload (Assigned Tickets)</h3></div>
+          <div className="card-header"><h3>Top Categories</h3></div>
           <div className="card-body">
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={data.assignee_workload} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={120} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#3b82f6" radius={[0,4,4,0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {topCategories.length === 0 ? (
+              <div className="empty-state" style={{ padding: 40 }}><i className="bi bi-tags" /><p>No category data</p></div>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={topCategories} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis dataKey="category" type="category" tick={{ fontSize: 11 }} width={110} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#8b5cf6" radius={[0,4,4,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Assignee Workload */}
+        <div className="card">
+          <div className="card-header"><h3>Staff Workload</h3></div>
+          <div className="card-body">
+            {!data.assignee_workload?.length ? (
+              <div className="empty-state" style={{ padding: 40 }}><i className="bi bi-people" /><p>No assignments yet</p></div>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={data.assignee_workload} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={110} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#3b82f6" radius={[0,4,4,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

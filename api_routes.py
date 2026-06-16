@@ -43,7 +43,7 @@ def user_to_dict(user):
     }
 
 
-def ticket_to_dict(ticket, include_comments=False, include_history=False):
+def ticket_to_dict(ticket, include_comments=False, include_history=False, viewer=None):
     from models import Comment
     data = {
         'id': ticket.id,
@@ -67,7 +67,11 @@ def ticket_to_dict(ticket, include_comments=False, include_history=False):
         'comment_count': ticket.comments.count(),
     }
     if include_comments:
-        data['comments'] = [comment_to_dict(c) for c in ticket.comments.order_by('created_at').all()]
+        comments = ticket.comments.order_by('created_at').all()
+        # Server-side: hide internal comments from regular users
+        if viewer and viewer.role == 'user':
+            comments = [c for c in comments if not c.is_internal]
+        data['comments'] = [comment_to_dict(c) for c in comments]
     if include_history:
         data['history'] = [history_to_dict(h) for h in sorted(ticket.histories, key=lambda h: h.timestamp)]
     return data
@@ -424,7 +428,7 @@ def get_ticket(ticket_id):
         if ticket.id not in assigned_ids and ticket.created_by_id != user.id:
             return jsonify({'error': 'Access denied'}), 403
 
-    return jsonify(ticket_to_dict(ticket, include_comments=True, include_history=True)), 200
+    return jsonify(ticket_to_dict(ticket, include_comments=True, include_history=True, viewer=user)), 200
 
 
 @api_bp.route('/tickets/<int:ticket_id>', methods=['PUT'])
@@ -487,7 +491,7 @@ def update_ticket(ticket_id):
     except Exception as e:
         logger.warning(f"Notification error: {e}")
 
-    return jsonify(ticket_to_dict(ticket, include_comments=True, include_history=True)), 200
+    return jsonify(ticket_to_dict(ticket, include_comments=True, include_history=True, viewer=user)), 200
 
 
 @api_bp.route('/tickets/<int:ticket_id>', methods=['DELETE'])
@@ -1094,4 +1098,49 @@ def analytics_stats():
 @jwt_required()
 def serve_attachment(filename):
     from app import app
+    from models import Attachment
+    user = get_current_user()
+
+    # Find attachment and enforce ticket-level authorization (prevent IDOR)
+    att = Attachment.query.filter_by(filename=filename).first_or_404()
+    ticket = att.ticket
+
+    if user.role == 'user' and ticket.created_by_id != user.id:
+        return jsonify({'error': 'Access denied'}), 403
+    if user.role == 'intern':
+        assigned_ids = [t.id for t in user.assigned_tickets]
+        if ticket.id not in assigned_ids and ticket.created_by_id != user.id:
+            return jsonify({'error': 'Access denied'}), 403
+
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+# ---------------------------------------------------------------------------
+# Intern management stats (admin only)
+# ---------------------------------------------------------------------------
+@api_bp.route('/users/interns/stats', methods=['GET'])
+@jwt_required()
+def intern_stats():
+    from models import User, Ticket
+    current = get_current_user()
+    if current.role != 'admin':
+        return jsonify({'error': 'Admin only'}), 403
+
+    interns = User.query.filter_by(role='intern').order_by(User.full_name).all()
+    result = []
+    for intern in interns:
+        assigned = intern.assigned_tickets
+        assigned_ids = [t.id for t in assigned]
+        open_count = Ticket.query.filter(Ticket.id.in_(assigned_ids), Ticket.status == 'open').count() if assigned_ids else 0
+        in_progress = Ticket.query.filter(Ticket.id.in_(assigned_ids), Ticket.status == 'in_progress').count() if assigned_ids else 0
+        resolved = Ticket.query.filter(Ticket.id.in_(assigned_ids), Ticket.status.in_(['resolved', 'closed'])).count() if assigned_ids else 0
+        escalated = Ticket.query.filter(Ticket.id.in_(assigned_ids), Ticket.status == 'escalated').count() if assigned_ids else 0
+        result.append({
+            **user_to_dict(intern),
+            'total_assigned': len(assigned_ids),
+            'open': open_count,
+            'in_progress': in_progress,
+            'resolved': resolved,
+            'escalated': escalated,
+        })
+    return jsonify(result), 200

@@ -166,24 +166,22 @@ export default function TicketForm() {
               </div>
             )}
 
-            {!isEdit && (
-              <div className="form-group">
-                <label className="form-label">Attachments</label>
-                <input
-                  type="file"
-                  className="form-control"
-                  multiple
-                  accept=".txt,.pdf,.png,.jpg,.jpeg,.gif,.doc,.docx,.xls,.xlsx"
-                  onChange={e => setFiles(Array.from(e.target.files))}
-                />
-                <div className="form-hint">Allowed: PDF, images, Word, Excel (max 16MB)</div>
-                {files.length > 0 && (
-                  <div style={{ marginTop: 8 }}>
-                    {files.map(f => <div key={f.name} style={{ fontSize: 12, color: '#6b7280' }}><i className="bi bi-paperclip" /> {f.name}</div>)}
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="form-group">
+              <label className="form-label">{isEdit ? 'Add Attachments' : 'Attachments'}</label>
+              <input
+                type="file"
+                className="form-control"
+                multiple
+                accept=".txt,.pdf,.png,.jpg,.jpeg,.gif,.doc,.docx,.xls,.xlsx"
+                onChange={e => setFiles(Array.from(e.target.files))}
+              />
+              <div className="form-hint">Allowed: PDF, images, Word, Excel (max 16MB each)</div>
+              {files.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  {files.map(f => <div key={f.name} style={{ fontSize: 12, color: '#6b7280' }}><i className="bi bi-paperclip" /> {f.name}</div>)}
+                </div>
+              )}
+            </div>
 
             <div className="flex gap-8" style={{ marginTop: 8 }}>
               <button type="submit" className="btn btn-primary" disabled={loading}>

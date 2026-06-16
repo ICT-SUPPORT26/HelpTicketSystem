@@ -10,6 +10,7 @@ const navItems = [
   { section: 'Admin', items: [
     { to: '/admin', icon: 'bi-speedometer2', label: 'Admin Dashboard', roles: ['admin'] },
     { to: '/admin/users', icon: 'bi-people-fill', label: 'User Management', roles: ['admin'] },
+    { to: '/admin/interns', icon: 'bi-person-badge-fill', label: 'Intern Management', roles: ['admin'] },
   ]},
   { section: 'Reports', items: [
     { to: '/reports', icon: 'bi-bar-chart-fill', label: 'Reports', roles: ['admin', 'intern'] },
