@@ -159,16 +159,8 @@ def login():
     if not user:
         return jsonify({'error': 'Invalid username or password'}), 401
 
-    # Special admin/intern hardcoded check (mirrors existing routes.py logic)
-    if username == '215030':
-        if password != 'admin123':
-            return jsonify({'error': 'Invalid username or password'}), 401
-    elif username == 'dctraining':
-        if password != 'Dctraining2023':
-            return jsonify({'error': 'Invalid username or password'}), 401
-    else:
-        if not check_password_hash(user.password_hash, password):
-            return jsonify({'error': 'Invalid username or password'}), 401
+    if not check_password_hash(user.password_hash, password):
+        return jsonify({'error': 'Invalid username or password'}), 401
 
     if not user.is_active:
         return jsonify({'error': 'Account is deactivated. Contact administrator.'}), 403
@@ -222,16 +214,8 @@ def change_password():
     if not current_pw or not new_pw:
         return jsonify({'error': 'current_password and new_password are required'}), 400
 
-    # Allow admin bypass for hardcoded accounts
-    if user.username == '215030':
-        if current_pw != 'admin123' and not check_password_hash(user.password_hash, current_pw):
-            return jsonify({'error': 'Current password is incorrect'}), 400
-    elif user.username == 'dctraining':
-        if current_pw != 'Dctraining2023' and not check_password_hash(user.password_hash, current_pw):
-            return jsonify({'error': 'Current password is incorrect'}), 400
-    else:
-        if not check_password_hash(user.password_hash, current_pw):
-            return jsonify({'error': 'Current password is incorrect'}), 400
+    if not check_password_hash(user.password_hash, current_pw):
+        return jsonify({'error': 'Current password is incorrect'}), 400
 
     if len(new_pw) < 6:
         return jsonify({'error': 'New password must be at least 6 characters'}), 400
@@ -507,7 +491,8 @@ def update_ticket(ticket_id):
                     original_filename=f.filename,
                     filename=fname,
                     file_size=_os.path.getsize(path),
-                    mime_type=f.content_type or 'application/octet-stream',
+                    content_type=f.content_type or 'application/octet-stream',
+                    uploaded_by_id=user.id,
                 )
                 db.session.add(att)
 

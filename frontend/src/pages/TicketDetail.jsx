@@ -247,12 +247,31 @@ export default function TicketDetail() {
               <div className="card-header"><h3>Attachments</h3></div>
               <div className="card-body">
                 {ticket.attachments.map(a => (
-                  <a key={a.id} href={a.url} download={a.original_filename}
-                    className="flex gap-8" style={{ padding: '8px 0', borderBottom: '1px solid #f3f4f6', color: '#3b82f6' }}>
+                  <button
+                    key={a.id}
+                    className="flex gap-8"
+                    style={{ padding: '8px 0', borderBottom: '1px solid #f3f4f6', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                    onClick={async () => {
+                      try {
+                        const res = await client.get(a.url, { responseType: 'blob' })
+                        const blobUrl = URL.createObjectURL(res.data)
+                        const link = document.createElement('a')
+                        link.href = blobUrl
+                        link.download = a.original_filename
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                        URL.revokeObjectURL(blobUrl)
+                      } catch {
+                        toast.error('Failed to download attachment')
+                      }
+                    }}
+                  >
                     <i className="bi bi-paperclip" />
                     <span>{a.original_filename}</span>
                     <span style={{ color: '#9ca3af', fontSize: 12 }}>({Math.round(a.file_size / 1024)}KB)</span>
-                  </a>
+                    <i className="bi bi-download" style={{ marginLeft: 'auto', fontSize: 12 }} />
+                  </button>
                 ))}
               </div>
             </div>
