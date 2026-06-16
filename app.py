@@ -6,7 +6,8 @@ import logging
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf.csrf import CSRFProtect
-from extensions import db, login_manager, mail
+from flask_cors import CORS
+from extensions import db, login_manager, mail, jwt
 from datetime import datetime, timedelta
 from flask import session, redirect, url_for, flash
 from flask_login import logout_user, current_user
@@ -69,6 +70,11 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
 
+# JWT Configuration
+app.config['JWT_SECRET_KEY'] = os.environ.get('SESSION_SECRET', 'jwt-helpdesk-secret')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=60)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=7)
+
 # Uploads
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
@@ -85,7 +91,11 @@ app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'helpt
 db.init_app(app)
 login_manager.init_app(app)
 mail.init_app(app)
+jwt.init_app(app)
 csrf = CSRFProtect(app)
+
+# CORS for React frontend
+CORS(app, resources={r'/api/v1/*': {'origins': '*', 'supports_credentials': True}})
 
 # IMPORTANT: import models BEFORE create_all
 import models
@@ -236,6 +246,11 @@ def add_no_cache_headers(response):
 
 # Import routes so they attach to app
 import routes
+
+# Register API blueprint (JWT-protected, CSRF-exempt)
+from api_routes import api_bp
+csrf.exempt(api_bp)
+app.register_blueprint(api_bp)
 
 # Register CLI commands for testing
 from cli_commands import cli as sms_cli

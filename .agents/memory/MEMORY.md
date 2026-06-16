@@ -1,0 +1,1 @@
+- [React migration architecture](react-migration.md) — Flask on 8000 (console), React Vite on 5000 (webview), JWT auth, Vite proxies /api/* and /uploads/*
