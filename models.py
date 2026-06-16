@@ -206,17 +206,47 @@ class ReportFile(db.Model):
 
 
 class AccessLog(db.Model):
-    """Stores user access events for auditing and active session tracking."""
+    """
+    Stores HTTP request access logs for auditing, monitoring, and compliance.
+    
+    Every request is logged with:
+    - Authentication info (user_id or null for anonymous)
+    - Request details (method, path, IP)
+    - Response details (status code, response time)
+    - Timestamp
+    """
+    __tablename__ = 'access_log'  # Explicit table name
+    
     id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
-    action = db.Column(db.String(50), nullable=False)  # login, logout, access
-    ip_address = db.Column(db.String(45), nullable=True)
-    user_agent = db.Column(db.String(512), nullable=True)
-    path = db.Column(db.String(255), nullable=True)
-    method = db.Column(db.String(10), nullable=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-
-    user = db.relationship('User', backref='access_logs')
+    
+    # Request information
+    http_method = db.Column(db.String(10), nullable=False, index=True)  # GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS
+    endpoint = db.Column(db.String(255), nullable=False, index=True)   # Route/path
+    ip_address = db.Column(db.String(45), nullable=True)                # IPv4 or IPv6
+    
+    # Response information
+    status_code = db.Column(db.Integer, nullable=True, index=True)      # HTTP status
+    response_time_ms = db.Column(db.Integer, nullable=True)             # Response time in milliseconds
+    
+    # Relationships
+    user = db.relationship('User', backref='access_logs', foreign_keys=[user_id])
 
     def __repr__(self):
-        return f'<AccessLog {self.id} user={self.user_id} action={self.action} at={self.timestamp}>'
+        user_info = f"user={self.user_id}" if self.user_id else "anonymous"
+        return f"<AccessLog {self.id}: {self.http_method} {self.endpoint} {self.status_code} {user_info}>"
+    
+    def to_dict(self):
+        """Convert to dictionary for JSON serialization."""
+        return {
+            'id': self.id,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'user_id': self.user_id,
+            'username': self.user.username if self.user else 'Anonymous',
+            'http_method': self.http_method,
+            'endpoint': self.endpoint,
+            'ip_address': self.ip_address,
+            'status_code': self.status_code,
+            'response_time_ms': self.response_time_ms,
+        }

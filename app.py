@@ -10,6 +10,7 @@ from extensions import db, login_manager, mail
 from datetime import datetime, timedelta
 from flask import session, redirect, url_for, flash
 from flask_login import logout_user, current_user
+import pytz
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -18,9 +19,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "default_secret_key")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# -----------------------------
 # Database configuration
-# -----------------------------
 db_url = os.environ.get("DATABASE_URL")
 
 if not db_url:
@@ -89,7 +88,12 @@ mail.init_app(app)
 csrf = CSRFProtect(app)
 
 # IMPORTANT: import models BEFORE create_all
-import models  
+import models
+
+# Initialize access logging middleware
+# Using queue-based approach for efficient, non-blocking logging
+from access_logger_simple import AccessLoggerMiddleware
+AccessLoggerMiddleware(app)
 
 with app.app_context():
     db.create_all()
@@ -115,9 +119,9 @@ with app.app_context():
         )
         db.session.add(admin)
         db.session.commit()
-        logging.info("Default admin account created: username='215030', password='admin123'")
-    else:
-        logging.info("Default admin already exists")
+        # logging.info("Default admin account created: username='215030', password='admin123'")
+    #else:
+     #   logging.info("Default admin already exists")
 
     # Check if intern exists
     intern = User.query.filter_by(username="dctraining").first()
@@ -135,8 +139,8 @@ with app.app_context():
         db.session.add(intern)
         db.session.commit()
         logging.info("Default intern account created: username='dctraining', password='Dctraining2023'")
-    else:
-        logging.info("Default intern already exists")
+   # else:
+        # logging.info("Default intern already exists")
 
 
 
@@ -148,6 +152,36 @@ login_manager.login_message_category = 'info'
 def load_user(user_id):
     from models import User
     return User.query.get(int(user_id))
+
+# Timezone conversion filter for templates
+nairobi_tz = pytz.timezone('Africa/Nairobi')
+utc_tz = pytz.UTC
+
+@app.template_filter('to_nairobi')
+def to_nairobi_time(dt):
+    """Convert UTC datetime to Nairobi timezone (EAT, UTC+3)"""
+    if dt is None:
+        return None
+    
+    # If datetime is naive, assume it's UTC
+    if dt.tzinfo is None:
+        dt = utc_tz.localize(dt)
+    else:
+        # Convert to UTC first if it has timezone info
+        dt = dt.astimezone(utc_tz)
+    
+    # Convert to Nairobi timezone
+    nairobi_time = dt.astimezone(nairobi_tz)
+    return nairobi_time
+
+@app.template_filter('format_nairobi')
+def format_nairobi_time(dt, fmt='%Y-%m-%d %H:%M:%S'):
+    """Format datetime in Nairobi timezone"""
+    if dt is None:
+        return ''
+    
+    nairobi_time = app.jinja_env.filters['to_nairobi'](dt)
+    return nairobi_time.strftime(fmt) if nairobi_time else ''
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 

@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="alert alert-warning" role="alert">
+                <h4 class="alert-heading">Access Logs Not Initialized</h4>
+                <p>{{ message }}</p>
+                <hr>
+                <p class="mb-0">
+                    To initialize access logging, run the following command in your terminal:
+                    <br><br>
+                    <code>python migrate_access_log.py</code>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

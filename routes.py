@@ -1,7 +1,11 @@
 import os
+import logging
 from datetime import datetime, timedelta
 from flask import render_template, flash, redirect, url_for, request, send_from_directory, abort, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
+
+# Configure logging
+logger = logging.getLogger(__name__)
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, desc
@@ -50,14 +54,6 @@ def login():
                 user = User.query.filter_by(username='215030').first()
                 if user:
                     login_user(user, remember=remember_me)
-                    # record login access
-                    try:
-                        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-                    except Exception:
-                        ip = None
-                    ua = request.headers.get('User-Agent')
-                    db.session.add(AccessLog(user_id=user.id, action='login', ip_address=ip, user_agent=ua, path=request.path, method=request.method))
-                    db.session.commit()
                     session.permanent = True
                     next_page = request.args.get('next')
                     if not next_page or not next_page.startswith('/'):
@@ -74,14 +70,6 @@ def login():
             user = User.query.filter_by(username='dctraining').first()
             if user:
                 login_user(user, remember=remember_me)
-                # record login access
-                try:
-                    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-                except Exception:
-                    ip = None
-                ua = request.headers.get('User-Agent')
-                db.session.add(AccessLog(user_id=user.id, action='login', ip_address=ip, user_agent=ua, path=request.path, method=request.method))
-                db.session.commit()
                 session.permanent = True
                 next_page = request.args.get('next')
                 if not next_page or not next_page.startswith('/'):
@@ -112,14 +100,6 @@ def login():
             print(f"DEBUG: User {user.username} login SUCCESS - role={user.role}, is_approved={user.is_approved}, is_active={user.is_active}")
             
             login_user(user, remember=remember_me)
-            # record login access
-            try:
-                ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-            except Exception:
-                ip = None
-            ua = request.headers.get('User-Agent')
-            db.session.add(AccessLog(user_id=user.id, action='login', ip_address=ip, user_agent=ua, path=request.path, method=request.method))
-            db.session.commit()
             session.permanent = True
             next_page = request.args.get('next')
             if not next_page or not next_page.startswith('/'):
@@ -178,18 +158,6 @@ def logout():
     resp.headers['Expires'] = '0'
 
     flash('You have been logged out.', 'info')
-    # record logout access
-    try:
-        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    except Exception:
-        ip = None
-    ua = request.headers.get('User-Agent')
-    try:
-        db.session.add(AccessLog(user_id=_uid, action='logout', ip_address=ip, user_agent=ua, path=request.path, method=request.method))
-        db.session.commit()
-    except Exception:
-        # don't block logout on logging failure
-        db.session.rollback()
     return resp
 
 
@@ -202,38 +170,277 @@ def keepalive():
     return jsonify({'ok': True})
 
 
-@app.route('/access_logs')
+@app.route('/access_logs/details')
 @login_required
-def access_logs():
-    # Admin-only view for access logs
+def access_logs_details():
+    """
+    Admin-only view for HTTP access logs with filtering and pagination.
+    
+    Query parameters:
+    - page: page number (default: 1)
+    - user_id: filter by user ID
+    - status_code: filter by HTTP status code
+    - method: filter by HTTP method (GET, POST, etc.)
+    - start: filter by start date (ISO format)
+    - end: filter by end date (ISO format)
+    """
+    # Admin-only access
     if not hasattr(current_user, 'role') or current_user.role != 'admin':
         abort(403)
 
+    # Check if access_log table exists
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        if 'access_log' not in inspector.get_table_names():
+            flash('Access logging table not initialized. Run migrate_access_log.py to create it.', 'warning')
+            return render_template('access_logs_empty.html', message='Access log table not initialized')
+    except Exception as e:
+        logger.error(f"Error checking access_log table: {e}")
+        flash('Error checking access logs table.', 'error')
+        return render_template('access_logs_empty.html', message='Error checking table')
+
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 100  # Logs per page
+    
+    # Filters
+    user_id = request.args.get('user_id', type=int)
+    status_code = request.args.get('status_code', type=int)
+    method = request.args.get('method')
     start = request.args.get('start')
     end = request.args.get('end')
-    user_id = request.args.get('user_id')
 
-    q = AccessLog.query.order_by(AccessLog.timestamp.desc())
+    # Build query
+    query = AccessLog.query.order_by(AccessLog.timestamp.desc())
+    
+    # Apply filters
     if user_id:
-        try:
-            q = q.filter(AccessLog.user_id == int(user_id))
-        except Exception:
-            pass
+        query = query.filter(AccessLog.user_id == user_id)
+    
+    if status_code:
+        query = query.filter(AccessLog.status_code == status_code)
+    
+    if method:
+        query = query.filter(AccessLog.http_method == method.upper())
+    
     if start:
         try:
-            sdt = datetime.fromisoformat(start)
-            q = q.filter(AccessLog.timestamp >= sdt)
-        except Exception:
-            pass
+            start_dt = datetime.fromisoformat(start)
+            query = query.filter(AccessLog.timestamp >= start_dt)
+        except (ValueError, TypeError):
+            start = None
+    
     if end:
         try:
-            edt = datetime.fromisoformat(end)
-            q = q.filter(AccessLog.timestamp <= edt)
-        except Exception:
-            pass
+            end_dt = datetime.fromisoformat(end)
+            # Include entire day for end date
+            end_dt = end_dt.replace(hour=23, minute=59, second=59)
+            query = query.filter(AccessLog.timestamp <= end_dt)
+        except (ValueError, TypeError):
+            end = None
 
-    logs = q.limit(1000).all()
-    return render_template('access_logs.html', logs=logs, start=start, end=end, user_id=user_id)
+    # Paginate
+    paginated = query.paginate(page=page, per_page=per_page, error_out=False)
+    logs = paginated.items
+    
+    # Calculate pagination display info
+    start_item = (page - 1) * per_page + 1 if logs else 0
+    end_item = start_item + len(logs) - 1 if logs else 0
+    
+    # Get list of users for filter dropdown
+    users = User.query.order_by(User.username).all()
+    
+    # Get summary stats
+    total_logs = AccessLog.query.count()
+    today_logs = AccessLog.query.filter(
+        AccessLog.timestamp >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    ).count()
+
+    return render_template(
+        'access_logs.html',
+        logs=logs,
+        paginated=paginated,
+        start_item=start_item,
+        end_item=end_item,
+        users=users,
+        user_id=user_id,
+        status_code=status_code,
+        method=method,
+        start=start,
+        end=end,
+        total_logs=total_logs,
+        today_logs=today_logs,
+    )
+
+
+@app.route('/access_logs')
+@login_required
+def access_logs():
+    """
+    Admin view showing all users grouped by their activity (DEFAULT VIEW).
+    
+    Displays:
+    - User info (username, full name)
+    - Log count
+    - Last activity timestamp
+    - Error/success rate
+    - Link to view all user activities
+    """
+    # Admin-only access
+    if not hasattr(current_user, 'role') or current_user.role != 'admin':
+        abort(403)
+
+    try:
+        # Check if access_log table exists
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        if 'access_log' not in inspector.get_table_names():
+            flash('Access logging table not initialized. Run migrate_access_log.py to create it.', 'warning')
+            return render_template('access_logs_empty.html', message='Access log table not initialized')
+        
+        # Get pagination
+        page = request.args.get('page', 1, type=int)
+        per_page = 20  # Users per page
+        
+        # Get list of users with their log statistics (with pagination)
+        user_stats_query = db.session.query(
+            User.id,
+            User.username,
+            User.full_name,
+            User.role,
+            func.count(AccessLog.id).label('total_logs'),
+            func.max(AccessLog.timestamp).label('last_activity'),
+            func.sum(func.cast(AccessLog.status_code >= 400, db.Integer)).label('error_count'),
+        ).outerjoin(
+            AccessLog, User.id == AccessLog.user_id
+        ).group_by(
+            User.id, User.username, User.full_name, User.role
+        ).order_by(
+            func.max(AccessLog.timestamp).desc()
+        )
+        
+        # Paginate the results
+        paginated = user_stats_query.paginate(page=page, per_page=per_page, error_out=False)
+        user_stats = paginated.items
+        
+    except Exception as e:
+        logger.error(f"Error fetching access logs: {e}")
+        flash('Error accessing logs. Please contact an administrator.', 'error')
+        return render_template('access_logs_empty.html', message='Error fetching logs')
+    
+    # Calculate stats for display
+    users_with_stats = []
+    for stat in user_stats:
+        total_logs = stat.total_logs or 0
+        error_count = stat.error_count or 0
+        error_rate = (error_count / total_logs * 100) if total_logs > 0 else 0
+        
+        users_with_stats.append({
+            'id': stat.id,
+            'username': stat.username,
+            'full_name': stat.full_name,
+            'role': stat.role,
+            'total_logs': total_logs,
+            'last_activity': stat.last_activity,
+            'error_count': error_count,
+            'error_rate': error_rate,
+            'success_rate': 100 - error_rate,
+        })
+    
+    return render_template(
+        'access_logs_by_user.html',
+        users_with_stats=users_with_stats,
+        paginated=paginated,
+    )
+
+
+@app.route('/access_logs/user_timeline/<int:user_id>')
+@login_required
+def user_activity_timeline(user_id):
+    """
+    Show detailed timeline of a user's activities.
+    Displays: login, all actions, logout, response times, status codes.
+    """
+    # Admin-only access
+    if not hasattr(current_user, 'role') or current_user.role != 'admin':
+        abort(403)
+
+    try:
+        # Check if access_log table exists
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        if 'access_log' not in inspector.get_table_names():
+            flash('Access logging table not initialized.', 'warning')
+            return render_template('access_logs_empty.html', message='Access log table not initialized')
+        
+        # Get the user
+        user = User.query.get_or_404(user_id)
+        
+        # Get pagination
+        page = request.args.get('page', 1, type=int)
+        per_page = 50  # Activity entries per page
+        
+        # Get all activities for this user, ordered by timestamp
+        activities_query = AccessLog.query.filter_by(user_id=user_id).order_by(
+            AccessLog.timestamp.desc()
+        )
+        
+        # Paginate activities
+        paginated = activities_query.paginate(page=page, per_page=per_page, error_out=False)
+        activities = paginated.items
+        
+        # Detect login/logout patterns
+        # A login is typically a GET to /login or /dashboard
+        # A logout is a GET to /logout
+        login_events = []
+        logout_events = []
+        sessions = []
+        
+        # Build sessions from activities
+        all_activities = AccessLog.query.filter_by(user_id=user_id).order_by(
+            AccessLog.timestamp.asc()
+        ).all()
+        
+        current_session = None
+        for activity in all_activities:
+            # Check for login indicators
+            if activity.endpoint in ['login', 'register'] and activity.status_code == 200:
+                if current_session is None:
+                    current_session = {
+                        'login_time': activity.timestamp,
+                        'activities': [],
+                        'logout_time': None,
+                    }
+            
+            # Add activity to current session
+            if current_session is not None:
+                current_session['activities'].append(activity)
+            
+            # Check for logout
+            if activity.endpoint == 'logout' and activity.status_code in [200, 302]:
+                if current_session is not None:
+                    current_session['logout_time'] = activity.timestamp
+                    sessions.append(current_session)
+                    current_session = None
+        
+        # If there's an open session, add it
+        if current_session is not None:
+            sessions.append(current_session)
+        
+    except Exception as e:
+        logger.error(f"Error fetching user timeline: {e}")
+        flash('Error fetching activities.', 'error')
+        return render_template('access_logs_empty.html', message='Error fetching activities')
+    
+    return render_template(
+        'user_activity_timeline.html',
+        user=user,
+        activities=activities,
+        paginated=paginated,
+        sessions=sessions,
+    )
+
 
 from flask_wtf.csrf import CSRFError
 
@@ -829,11 +1036,14 @@ def update_ticket(id):
     form = TicketUpdateForm(user_role=current_user.role, current_status=ticket.status)
     
     # Debug logging  
-    print(f"DEBUG UPDATE TICKET: method={request.method}, status={request.form.get('status')}, category_id={request.form.get('category_id')}")
+    print(f"DEBUG UPDATE TICKET: method={request.method}, status={request.form.get('status')}, category_id={request.form.get('category_id')}, assignees_raw={request.form.getlist('assignees')}")
     print(f"DEBUG CHOICES: {form.status.choices}")
     
     if form.validate_on_submit():
         print("DEBUG: Form validated successfully!")
+        print(f"DEBUG: form.assignees.data = {form.assignees.data}, type = {type(form.assignees.data)}")
+        print(f"DEBUG: Current ticket assignees before update: {[u.id for u in ticket.assignees]}")
+        
         old_status = ticket.status
         old_priority = ticket.priority
         old_category_id = ticket.category_id
@@ -916,11 +1126,37 @@ def update_ticket(id):
         
         ticket.updated_at = datetime.utcnow()
 
+        # MUST SET ASSIGNEES FIRST, BEFORE ANY STATUS CHANGES
         # Only admins can reassign tickets
         if current_user.role == 'admin':
             # Get new assignee IDs from form (should be a list)
             new_assignee_ids = form.assignees.data or []
+            print(f"DEBUG ADMIN REASSIGN: new_assignee_ids from form = {new_assignee_ids}")
             
+            # VALIDATE FIRST: Prevent assigning if intern/technician already has an active task
+            for new_assigned_id in new_assignee_ids:
+                active_task_count = Ticket.query.join(Ticket.assignees).filter(
+                    User.id == new_assigned_id,
+                    Ticket.status.in_(['open', 'in_progress']),
+                    Ticket.id != ticket.id
+                ).count()
+                if active_task_count >= 1:
+                    flash('This technician/intern already has an active task assigned. Only 1 active task is allowed at a time.', 'danger')
+                    return render_template('ticket_detail.html', ticket=ticket, comments=Comment.query.filter_by(ticket_id=id).all(), comment_form=CommentForm(), update_form=form)
+            
+            # NOW UPDATE ASSIGNEES: Update assignees and track newly assigned
+            old_assignee_ids = set([u.id for u in ticket.assignees])
+            # Fetch users once and filter to only those that exist
+            users_to_assign = [User.query.get(uid) for uid in new_assignee_ids]
+            users_to_assign = [u for u in users_to_assign if u is not None]
+            ticket.assignees = users_to_assign
+            new_assigned_set = set(new_assignee_ids)
+            
+            print(f"DEBUG ASSIGNEE UPDATE: Fetched users = {[u.id if u else None for u in [User.query.get(uid) for uid in new_assignee_ids]]}")
+            print(f"DEBUG ASSIGNEE UPDATE: Filtered users = {[u.id for u in users_to_assign]}")
+            print(f"DEBUG ASSIGNEE UPDATE: ticket.assignees now = {[u.id for u in ticket.assignees]}")
+            
+            # NOW handle automatic status transitions based on assignment
             # Automatic transition: If reassigned while escalated or open, move to in_progress
             if (old_status in ['open', 'escalated']) and new_assignee_ids:
                 ticket.status = 'in_progress'
@@ -953,22 +1189,6 @@ def update_ticket(id):
                         author_id=current_user.id
                     )
                     db.session.add(de_esc_comment)
-
-            # Prevent assigning if intern/technician already has an active task
-            for new_assigned_id in new_assignee_ids:
-                active_task_count = Ticket.query.join(Ticket.assignees).filter(
-                    User.id == new_assigned_id,
-                    Ticket.status.in_(['open', 'in_progress']),
-                    Ticket.id != ticket.id
-                ).count()
-                if active_task_count >= 1:
-                    flash('This technician/intern already has an active task assigned. Only 1 active task is allowed at a time.', 'danger')
-                    return render_template('ticket_detail.html', ticket=ticket, comments=Comment.query.filter_by(ticket_id=id).all(), comment_form=CommentForm(), update_form=form)
-            
-            # Update assignees and track newly assigned
-            old_assignee_ids = set([u.id for u in ticket.assignees])
-            ticket.assignees = [User.query.get(uid) for uid in new_assignee_ids if User.query.get(uid)]
-            new_assigned_set = set(new_assignee_ids)
             
             # Send SMS to newly assigned staff (those not previously assigned)
             newly_assigned_ids = new_assigned_set - old_assignee_ids
@@ -994,28 +1214,12 @@ def update_ticket(id):
             elif not new_assignee_ids:
                 ticket.due_date = None
 
-            # Auto-change status based on assignment
-            if ticket.assignees and old_status == 'open':
-                ticket.status = 'in_progress'
-            elif not ticket.assignees and old_status == 'in_progress':
-                ticket.status = 'open'
-
         # Set closed_at timestamp and closed_by if ticket is closed
         if form.status.data == 'closed' and old_status != 'closed':
-            # Store current assignees before any modifications
-            current_assignees = list(ticket.assignees)
-            
             ticket.closed_at = datetime.utcnow()
             ticket.closed_by_id = current_user.id
-            
-            # CRITICAL: Ensure assignees are preserved when closing
-            # This is essential for maintaining proper tracking and reports
-            if current_user.role == 'admin' and form.assignees.data is not None:
-                # If admin is reassigning during closure, use new assignees
-                ticket.assignees = [User.query.get(uid) for uid in (form.assignees.data or []) if User.query.get(uid)]
-            else:
-                # Otherwise preserve existing assignees
-                ticket.assignees = current_assignees
+            # NOTE: Assignees are already set correctly in the admin reassignment block above
+            # Just preserve them when closing
                 
         elif form.status.data != 'closed':
             ticket.closed_at = None
@@ -1074,7 +1278,13 @@ def update_ticket(id):
                 )
                 db.session.add(history)
 
+        print(f"DEBUG BEFORE COMMIT: ticket.assignees = {[u.id for u in ticket.assignees]}, ticket.status = {ticket.status}")
         db.session.commit()
+        print(f"DEBUG AFTER COMMIT: ticket.assignees = {[u.id for u in ticket.assignees]}, ticket.status = {ticket.status}")
+
+        # Reload from database to verify persistence
+        db.session.refresh(ticket)
+        print(f"DEBUG AFTER REFRESH: ticket.assignees = {[u.id for u in ticket.assignees]}, ticket.status = {ticket.status}")
 
         # Send notifications using the new system
         NotificationManager.notify_ticket_updated(ticket, current_user)

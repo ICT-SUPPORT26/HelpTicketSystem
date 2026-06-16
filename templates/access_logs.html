@@ -1,50 +1,269 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2>Access Logs</h2>
-<form method="get" class="form-inline mb-3">
-  <div class="form-group mr-2">
-    <label for="user_id">User ID</label>
-    <input type="text" name="user_id" id="user_id" value="{{ user_id or '' }}" class="form-control ml-2" />
-  </div>
-  <div class="form-group mr-2">
-    <label for="start">Start (ISO)</label>
-    <input type="text" name="start" id="start" value="{{ start or '' }}" class="form-control ml-2" />
-  </div>
-  <div class="form-group mr-2">
-    <label for="end">End (ISO)</label>
-    <input type="text" name="end" id="end" value="{{ end or '' }}" class="form-control ml-2" />
-  </div>
-  <button type="submit" class="btn btn-primary">Filter</button>
-</form>
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Access Logs</h2>
+            <p class="text-muted">HTTP request audit trail for monitoring and compliance</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{{ url_for('access_logs') }}" class="btn btn-sm btn-outline-primary me-2">
+                <i class="bi bi-people"></i> View by User
+            </a>
+            <div class="d-inline-block me-3">
+                <small class="text-muted">Total Logs:</small>
+                <strong>{{ total_logs }}</strong>
+            </div>
+            <div class="d-inline-block">
+                <small class="text-muted">Today:</small>
+                <strong>{{ today_logs }}</strong>
+            </div>
+        </div>
+    </div>
 
-<table class="table table-striped table-sm">
-  <thead>
-    <tr>
-      <th>ID</th>
-      <th>Timestamp</th>
-      <th>User</th>
-      <th>Action</th>
-      <th>IP</th>
-      <th>Path</th>
-      <th>Method</th>
-      <th>User Agent</th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for l in logs %}
-    <tr>
-      <td>{{ l.id }}</td>
-      <td>{{ l.timestamp }}</td>
-      <td>{% if l.user %}{{ l.user.full_name }} ({{ l.user.username }}){% else %}Anonymous{% endif %}</td>
-      <td>{{ l.action }}</td>
-      <td>{{ l.ip_address }}</td>
-      <td>{{ l.path }}</td>
-      <td>{{ l.method }}</td>
-      <td style="max-width:400px;word-break:break-word">{{ l.user_agent }}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+    <!-- Filters Card -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="bi bi-funnel"></i> Filters
+                <button class="btn btn-sm btn-outline-secondary float-end" type="button" data-bs-toggle="collapse" data-bs-target="#filterPanel">
+                    <span id="filterToggle">Collapse</span>
+                </button>
+            </h5>
+        </div>
+        <div id="filterPanel" class="collapse show">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-2">
+                        <label for="user_id" class="form-label">User</label>
+                        <select name="user_id" id="user_id" class="form-select form-select-sm">
+                            <option value="">All Users</option>
+                            {% for user in users %}
+                                <option value="{{ user.id }}" 
+                                    {% if user_id == user.id %}selected{% endif %}>
+                                    {{ user.username }} ({{ user.full_name }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="method" class="form-label">HTTP Method</label>
+                        <select name="method" id="method" class="form-select form-select-sm">
+                            <option value="">All Methods</option>
+                            <option value="GET" {% if method == 'GET' %}selected{% endif %}>GET</option>
+                            <option value="POST" {% if method == 'POST' %}selected{% endif %}>POST</option>
+                            <option value="PUT" {% if method == 'PUT' %}selected{% endif %}>PUT</option>
+                            <option value="DELETE" {% if method == 'DELETE' %}selected{% endif %}>DELETE</option>
+                            <option value="PATCH" {% if method == 'PATCH' %}selected{% endif %}>PATCH</option>
+                            <option value="HEAD" {% if method == 'HEAD' %}selected{% endif %}>HEAD</option>
+                            <option value="OPTIONS" {% if method == 'OPTIONS' %}selected{% endif %}>OPTIONS</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="status_code" class="form-label">Status Code</label>
+                        <select name="status_code" id="status_code" class="form-select form-select-sm">
+                            <option value="">All Status Codes</option>
+                            <option value="200" {% if status_code == 200 %}selected{% endif %}>200 OK</option>
+                            <option value="301" {% if status_code == 301 %}selected{% endif %}>301 Redirect</option>
+                            <option value="302" {% if status_code == 302 %}selected{% endif %}>302 Redirect</option>
+                            <option value="304" {% if status_code == 304 %}selected{% endif %}>304 Not Modified</option>
+                            <option value="400" {% if status_code == 400 %}selected{% endif %}>400 Bad Request</option>
+                            <option value="401" {% if status_code == 401 %}selected{% endif %}>401 Unauthorized</option>
+                            <option value="403" {% if status_code == 403 %}selected{% endif %}>403 Forbidden</option>
+                            <option value="404" {% if status_code == 404 %}selected{% endif %}>404 Not Found</option>
+                            <option value="500" {% if status_code == 500 %}selected{% endif %}>500 Server Error</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="start" class="form-label">Start Date</label>
+                        <input type="datetime-local" name="start" id="start" class="form-control form-control-sm" 
+                               value="{{ start or '' }}" />
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="end" class="form-label">End Date</label>
+                        <input type="datetime-local" name="end" id="end" class="form-control form-control-sm"
+                               value="{{ end or '' }}" />
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-search"></i> Filter
+                        </button>
+                        <a href="{{ url_for('access_logs_details') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Table Card -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 10%">Timestamp</th>
+                        <th style="width: 12%">User</th>
+                        <th style="width: 10%">Method</th>
+                        <th style="width: 25%">Endpoint</th>
+                        <th style="width: 10%">Status</th>
+                        <th style="width: 10%">Response Time</th>
+                        <th style="width: 18%">IP Address</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if logs %}
+                        {% for log in logs %}
+                        <tr class="log-row">
+                            <td>
+                                <small class="text-monospace">{{ log.timestamp | format_nairobi }}</small>
+                            </td>
+                            <td>
+                                {% if log.user %}
+                                    <span class="badge bg-info">{{ log.user.username }}</span>
+                                    <br><small class="text-muted">{{ log.user.full_name }}</small>
+                                {% else %}
+                                    <span class="badge bg-secondary">Anonymous</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">{{ log.http_method }}</span>
+                            </td>
+                            <td>
+                                <code>{{ log.endpoint }}</code>
+                            </td>
+                            <td>
+                                {% if log.status_code %}
+                                    {% set status_class = 'bg-success' if log.status_code < 300 else 'bg-info' if log.status_code < 400 else 'bg-warning' if log.status_code < 500 else 'bg-danger' %}
+                                    <span class="badge {{ status_class }}">{{ log.status_code }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.response_time_ms %}
+                                    <span class="badge bg-light text-dark">{{ log.response_time_ms }}ms</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <code>{{ log.ip_address or 'N/A' }}</code>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox"></i> No logs found
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if paginated.pages > 1 %}
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+                Showing {{ start_item }} to {{ end_item }} of {{ paginated.total }} logs
+            </div>
+            <nav aria-label="Pagination">
+                <ul class="pagination mb-0 pagination-sm">
+                    {% if paginated.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('access_logs_details', page=1, user_id=user_id or '', status_code=status_code or '', method=method or '', start=start or '', end=end or '') }}">First</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('access_logs_details', page=paginated.prev_num, user_id=user_id or '', status_code=status_code or '', method=method or '', start=start or '', end=end or '') }}">Previous</a>
+                        </li>
+                    {% endif %}
+
+                    <!-- Page numbers -->
+                    {% set start_page = [1, paginated.page - 2] | max %}
+                    {% set end_page = [paginated.pages, paginated.page + 2] | min %}
+                    
+                    {% if start_page > 1 %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('access_logs_details', page=1, user_id=user_id or '', status_code=status_code or '', method=method or '', start=start or '', end=end or '') }}">1</a>
+                        </li>
+                        {% if start_page > 2 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        {% endif %}
+                    {% endif %}
+
+                    {% for page_num in range(start_page, end_page + 1) %}
+                        {% if page_num == paginated.page %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('access_logs_details', page=page_num, user_id=user_id or '', status_code=status_code or '', method=method or '', start=start or '', end=end or '') }}">{{ page_num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if end_page < paginated.pages %}
+                        {% if end_page < paginated.pages - 1 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        {% endif %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('access_logs_details', page=paginated.pages, user_id=user_id or '', status_code=status_code or '', method=method or '', start=start or '', end=end or '') }}">{{ paginated.pages }}</a>
+                        </li>
+                    {% endif %}
+
+                    {% if paginated.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('access_logs_details', page=paginated.next_num, user_id=user_id or '', status_code=status_code or '', method=method or '', start=start or '', end=end or '') }}">Next</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('access_logs_details', page=paginated.pages, user_id=user_id or '', status_code=status_code or '', method=method or '', start=start or '', end=end or '') }}">Last</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .log-row:hover {
+        background-color: #f8f9fa;
+    }
+    .text-monospace {
+        font-family: 'Courier New', monospace;
+    }
+    code {
+        background-color: #f4f4f4;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+</style>
+
+<script>
+    // Toggle filter panel collapse text
+    document.getElementById('filterPanel').addEventListener('hide.bs.collapse', function() {
+        document.getElementById('filterToggle').textContent = 'Expand';
+    });
+    document.getElementById('filterPanel').addEventListener('show.bs.collapse', function() {
+        document.getElementById('filterToggle').textContent = 'Collapse';
+    });
+</script>
 
 {% endblock %}
