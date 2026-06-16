@@ -448,7 +448,17 @@ def update_ticket(ticket_id):
         if ticket.id not in assigned_ids:
             return jsonify({'error': 'Access denied — ticket not assigned to you'}), 403
 
-    data = request.get_json(silent=True) or {}
+    # Support both JSON and multipart/form-data (edit with attachments)
+    is_multipart = request.content_type and 'multipart/form-data' in request.content_type
+    if is_multipart:
+        data = request.form
+        def get_list(key):
+            return request.form.getlist(key)
+    else:
+        data = request.get_json(silent=True) or {}
+        def get_list(key):
+            v = data.get(key, [])
+            return v if isinstance(v, list) else [v]
 
     if 'status' in data:
         old = ticket.status
@@ -475,11 +485,31 @@ def update_ticket(ticket_id):
 
     if 'assignees' in data and user.role == 'admin':
         ticket.assignees.clear()
-        for aid in data['assignees']:
+        for aid in get_list('assignees'):
             assignee = User.query.get(int(aid))
             if assignee:
                 ticket.assignees.append(assignee)
         record_history(ticket, user, 'assignees updated')
+
+    # Handle new file attachments (edit mode)
+    if 'attachments' in request.files:
+        from app import app as flask_app
+        from models import Attachment
+        import uuid, os as _os
+        for f in request.files.getlist('attachments'):
+            if f and f.filename:
+                ext = _os.path.splitext(f.filename)[1]
+                fname = f"{uuid.uuid4().hex}{ext}"
+                path = _os.path.join(flask_app.config['UPLOAD_FOLDER'], fname)
+                f.save(path)
+                att = Attachment(
+                    ticket_id=ticket.id,
+                    original_filename=f.filename,
+                    filename=fname,
+                    file_size=_os.path.getsize(path),
+                    mime_type=f.content_type or 'application/octet-stream',
+                )
+                db.session.add(att)
 
     ticket.updated_at = datetime.utcnow()
     db.session.commit()

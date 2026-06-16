@@ -8,12 +8,12 @@ export default function Reports() {
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
 
-  const fetchStats = async () => {
+  const fetchStats = async (dates = dateRange) => {
     setLoading(true)
     try {
       const params = {}
-      if (dateRange.start) params.start = dateRange.start
-      if (dateRange.end) params.end = dateRange.end
+      if (dates.start) params.start = dates.start
+      if (dates.end) params.end = dates.end
       const res = await client.get('/reports/stats', { params })
       setStats(res.data)
     } catch {}
@@ -55,7 +55,11 @@ export default function Reports() {
             <button className="btn btn-primary btn-sm" onClick={fetchStats}>
               <i className="bi bi-search" /> Apply
             </button>
-            <button className="btn btn-outline btn-sm" onClick={() => { setDateRange({ start: '', end: '' }); fetchStats() }}>
+            <button className="btn btn-outline btn-sm" onClick={() => {
+              const empty = { start: '', end: '' }
+              setDateRange(empty)
+              fetchStats(empty)
+            }}>
               Reset
             </button>
           </div>

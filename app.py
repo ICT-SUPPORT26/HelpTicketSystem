@@ -71,8 +71,17 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 
 # JWT Configuration
-app.config['JWT_SECRET_KEY'] = os.environ.get('SESSION_SECRET', 'jwt-helpdesk-secret')
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=60)
+_jwt_secret = os.environ.get('SESSION_SECRET')
+if not _jwt_secret:
+    import warnings
+    warnings.warn(
+        "SESSION_SECRET environment variable is not set. "
+        "Using an insecure development default — set SESSION_SECRET before deploying to production.",
+        stacklevel=2,
+    )
+    _jwt_secret = 'dev-jwt-helpdesk-secret-CHANGE-BEFORE-DEPLOY'
+app.config['JWT_SECRET_KEY'] = _jwt_secret
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=30)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=7)
 
 # Uploads

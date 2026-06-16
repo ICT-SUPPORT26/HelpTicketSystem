@@ -59,30 +59,23 @@ export default function TicketForm() {
 
     setLoading(true)
     try {
-      if (files.length > 0) {
-        const fd = new FormData()
-        fd.append('location', form.location)
-        fd.append('description', form.description)
-        fd.append('priority', form.priority)
-        if (form.category_id) fd.append('category_id', form.category_id)
-        form.assignees.forEach(a => fd.append('assignees', a))
-        files.forEach(f => fd.append('attachments', f))
-        if (isEdit) {
-          await client.put(`/tickets/${id}`, form)
-        } else {
-          const res = await client.post('/tickets', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-          navigate(`/tickets/${res.data.id}`)
-        }
+      const fd = new FormData()
+      fd.append('location', form.location)
+      fd.append('description', form.description)
+      fd.append('priority', form.priority)
+      if (form.category_id) fd.append('category_id', form.category_id)
+      form.assignees.forEach(a => fd.append('assignees', a))
+      files.forEach(f => fd.append('attachments', f))
+
+      if (isEdit) {
+        await client.put(`/tickets/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        toast.success('Ticket updated')
+        navigate(`/tickets/${id}`)
       } else {
-        if (isEdit) {
-          await client.put(`/tickets/${id}`, form)
-          navigate(`/tickets/${id}`)
-        } else {
-          const res = await client.post('/tickets', form)
-          navigate(`/tickets/${res.data.id}`)
-        }
+        const res = await client.post('/tickets', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        toast.success('Ticket created successfully')
+        navigate(`/tickets/${res.data.id}`)
       }
-      toast.success(isEdit ? 'Ticket updated' : 'Ticket created successfully')
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to save ticket')
     }
