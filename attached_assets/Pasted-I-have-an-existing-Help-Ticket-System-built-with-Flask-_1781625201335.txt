@@ -1,0 +1,79 @@
+I have an existing Help Ticket System built with Flask (Python) as the backend. I want to migrate the frontend to React.js while keeping Flask as the API backend.
+
+Project Goal:
+- Use React.js for the frontend UI.
+- Keep Flask handling authentication, database operations, ticket management, and API endpoints.
+- Use a REST API architecture between React and Flask.
+- Use React Router for navigation.
+- Use Axios for API requests.
+- Use functional components and React Hooks.
+- Follow a professional Help Desk / IT Support dashboard design.
+- Create reusable components and clean folder structure.
+- Make the application responsive for desktop and mobile.
+
+Required Pages:
+1. Login Page
+2. Dashboard
+3. Create Ticket
+4. My Tickets
+5. Ticket Details
+6. User Profile
+7. Admin Dashboard
+8. User Management
+9. Reports & Analytics
+10. Settings
+
+Frontend Requirements:
+- Modern sidebar navigation
+- Top navbar with user profile
+- Notification system
+- Ticket status badges (Open, In Progress, Resolved, Closed)
+- Search and filtering
+- Pagination
+- Loading spinners
+- Error handling
+- Protected routes
+- JWT authentication support
+
+Backend Integration:
+- Analyze existing Flask routes.
+- Convert Flask HTML templates into React components.
+- Create API service files for all backend communication.
+- Configure CORS properly.
+- Use environment variables for API URLs.
+- Maintain compatibility with the existing MySQL database.
+
+Project Structure:
+
+frontend/
+├── src/
+│   ├── components/
+│   ├── pages/
+│   ├── layouts/
+│   ├── services/
+│   ├── hooks/
+│   ├── context/
+│   ├── routes/
+│   ├── assets/
+│   └── App.jsx
+
+backend/
+├── app.py
+├── routes/
+├── models/
+├── services/
+├── config/
+└── requirements.txt
+
+Tasks:
+1. Analyze the existing Flask project.
+2. Identify all templates and routes.
+3. Create a migration plan.
+4. Generate React components page by page.
+5. Create Flask API endpoints where necessary.
+6. Implement authentication flow.
+7. Connect React frontend to Flask backend.
+8. Optimize code structure and performance.
+9. Prepare the project for Docker deployment.
+
+Act as a senior React + Flask architect and generate production-ready code with explanations.
