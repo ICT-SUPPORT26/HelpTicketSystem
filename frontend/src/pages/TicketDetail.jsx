@@ -114,7 +114,7 @@ export default function TicketDetail() {
   if (loading) return <LoadingSpinner size="lg" text="Loading ticket…" />
   if (!ticket) return null
 
-  const canComment = user.role !== 'user' || ticket.created_by_id === user.id
+  const canComment = user.role !== 'user' || ticket.created_by_id === user.id || ticket.creator?.id === user.id
   const canEscalate = user.role === 'intern' && !['closed', 'escalated'].includes(ticket.status)
   const canUpdate = user.role === 'admin' || (user.role === 'intern' && ticket.assignees?.some(a => a.id === user.id))
   const canClose = user.role === 'admin' || ticket.creator?.id === user.id

@@ -47,6 +47,7 @@ def ticket_to_dict(ticket, include_comments=False, include_history=False):
     from models import Comment
     data = {
         'id': ticket.id,
+        'created_by_id': ticket.created_by_id,
         'location': ticket.location,
         'description': ticket.description,
         'status': ticket.status,
@@ -437,11 +438,21 @@ def update_ticket(ticket_id):
     if user.role == 'user':
         return jsonify({'error': 'Access denied'}), 403
 
+    # Interns can only update tickets they are assigned to
+    if user.role == 'intern':
+        assigned_ids = [t.id for t in user.assigned_tickets]
+        if ticket.id not in assigned_ids:
+            return jsonify({'error': 'Access denied — ticket not assigned to you'}), 403
+
     data = request.get_json(silent=True) or {}
 
     if 'status' in data:
         old = ticket.status
         new = data['status']
+        # Interns may only move status forward through the natural workflow
+        allowed_intern_statuses = {'open', 'in_progress', 'resolved'}
+        if user.role == 'intern' and new not in allowed_intern_statuses:
+            return jsonify({'error': f'Interns cannot set status to {new}'}), 403
         if old != new:
             record_history(ticket, user, 'status changed', 'status', old, new)
             ticket.status = new
@@ -458,7 +469,7 @@ def update_ticket(ticket_id):
         cat_id = data['category_id']
         ticket.category_id = int(cat_id) if cat_id and str(cat_id) != '0' else None
 
-    if 'assignees' in data and user.role in ('admin',):
+    if 'assignees' in data and user.role == 'admin':
         ticket.assignees.clear()
         for aid in data['assignees']:
             assignee = User.query.get(int(aid))
@@ -503,8 +514,14 @@ def add_comment(ticket_id):
     user = get_current_user()
     ticket = Ticket.query.get_or_404(ticket_id)
 
+    # Users can only comment on their own tickets
     if user.role == 'user' and ticket.created_by_id != user.id:
         return jsonify({'error': 'Access denied'}), 403
+    # Interns can only comment on tickets assigned to them or created by them
+    if user.role == 'intern':
+        assigned_ids = [t.id for t in user.assigned_tickets]
+        if ticket.id not in assigned_ids and ticket.created_by_id != user.id:
+            return jsonify({'error': 'Access denied'}), 403
 
     data = request.get_json(silent=True) or {}
     content = data.get('content', '').strip()
@@ -543,12 +560,23 @@ def escalate_ticket(ticket_id):
         return jsonify({'error': 'Access denied'}), 403
 
     ticket = Ticket.query.get_or_404(ticket_id)
+
+    # Interns can only escalate tickets assigned to them
+    if user.role == 'intern':
+        assigned_ids = [t.id for t in user.assigned_tickets]
+        if ticket.id not in assigned_ids:
+            return jsonify({'error': 'Access denied — ticket not assigned to you'}), 403
+
+    if ticket.status in ('closed', 'escalated'):
+        return jsonify({'error': f'Cannot escalate a ticket with status {ticket.status}'}), 400
+
     data = request.get_json(silent=True) or {}
     reason = data.get('reason', '').strip()
 
     if not reason or len(reason) < 10:
         return jsonify({'error': 'Escalation reason must be at least 10 characters'}), 400
 
+    old_status = ticket.status
     ticket.status = 'escalated'
     ticket.escalated_at = datetime.utcnow()
     ticket.escalated_by_id = user.id
@@ -558,7 +586,7 @@ def escalate_ticket(ticket_id):
     if data.get('increase_priority'):
         ticket.priority = 'urgent'
 
-    record_history(ticket, user, 'escalated', 'status', ticket.status, 'escalated')
+    record_history(ticket, user, 'escalated', 'status', old_status, 'escalated')
     db.session.commit()
 
     return jsonify(ticket_to_dict(ticket)), 200

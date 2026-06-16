@@ -94,8 +94,9 @@ mail.init_app(app)
 jwt.init_app(app)
 csrf = CSRFProtect(app)
 
-# CORS for React frontend
-CORS(app, resources={r'/api/v1/*': {'origins': '*', 'supports_credentials': True}})
+# CORS for React frontend — restrict to localhost Vite dev server
+_cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:5000').split(',')
+CORS(app, resources={r'/api/v1/*': {'origins': _cors_origins, 'supports_credentials': True}})
 
 # IMPORTANT: import models BEFORE create_all
 import models
