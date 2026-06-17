@@ -254,7 +254,32 @@ def add_no_cache_headers(response):
     return response
 
 
-# Import routes so they attach to app
+# Serve the React SPA build — intercept all non-API, non-static requests
+import os as _os
+from flask import send_from_directory as _send_from_directory
+
+_REACT_DIST = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'frontend', 'dist')
+
+@app.before_request
+def _serve_react():
+    from flask import request
+    path = request.path
+    # Let API, static files, and uploads pass through to Flask handlers
+    if (path.startswith('/api/') or
+            path.startswith('/static/') or
+            path.startswith('/uploads/')):
+        return None
+    # If the React build exists, serve it
+    if _os.path.isdir(_REACT_DIST):
+        # Serve actual files (assets, favicon, etc.)
+        candidate = _os.path.join(_REACT_DIST, path.lstrip('/'))
+        if _os.path.isfile(candidate):
+            return _send_from_directory(_REACT_DIST, path.lstrip('/'))
+        # Fallback: serve index.html for all SPA routes
+        return _send_from_directory(_REACT_DIST, 'index.html')
+    return None
+
+# Import routes so they attach to app (legacy Jinja2 — used only when React build is absent)
 import routes
 
 # Register API blueprint (JWT-protected, CSRF-exempt)
