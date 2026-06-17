@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import client from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
+import RefreshIndicator from '../components/common/RefreshIndicator'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
@@ -84,16 +86,19 @@ export default function Analytics() {
   const [reportStats, setReportStats] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    Promise.all([
+  const loadData = useCallback(async () => {
+    const [analRes, repRes] = await Promise.all([
       client.get('/analytics/stats'),
       client.get('/reports/stats'),
-    ]).then(([analRes, repRes]) => {
-      setData(analRes.data)
-      setReportStats(repRes.data)
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    ])
+    setData(analRes.data)
+    setReportStats(repRes.data)
   }, [])
+
+  useEffect(() => { loadData().finally(() => setLoading(false)) }, [loadData])
+
+  const { lastUpdated, isRefreshing, refresh, notifyUpdated } = useAutoRefresh(loadData, 30000)
+  useEffect(() => { if (!loading) notifyUpdated() }, [loading])
 
   if (loading) return <LoadingSpinner size="lg" text="Loading analytics…" />
   if (!data) return null
@@ -130,6 +135,7 @@ export default function Analytics() {
           <h1 className="page-title">Analytics</h1>
           <p className="page-subtitle">System performance insights</p>
         </div>
+        <RefreshIndicator lastUpdated={lastUpdated} isRefreshing={isRefreshing} onRefresh={refresh} />
       </div>
 
       {/* KPI Cards */}

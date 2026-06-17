@@ -6,6 +6,8 @@ import { StatusBadge, PriorityBadge } from '../components/StatusBadge'
 import LoadingSpinner from '../components/LoadingSpinner'
 import DashboardCard from '../components/common/DashboardCard'
 import Modal from '../components/common/Modal'
+import RefreshIndicator from '../components/common/RefreshIndicator'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import { format } from 'date-fns'
 
 export default function Dashboard() {
@@ -18,32 +20,32 @@ export default function Dashboard() {
   const [modalTickets, setModalTickets] = useState([])
   const [loadingTickets, setLoadingTickets] = useState(false)
 
-  useEffect(() => {
-    client.get('/dashboard/stats')
-      .then(r => { setStats(r.data); setLoading(false) })
-      .catch(() => setLoading(false))
+  const loadData = useCallback(async () => {
+    const r = await client.get('/dashboard/stats')
+    setStats(r.data)
   }, [])
+
+  useEffect(() => {
+    loadData().finally(() => setLoading(false))
+  }, [loadData])
+
+  const { lastUpdated, isRefreshing, refresh, notifyUpdated } = useAutoRefresh(loadData, 30000)
+
+  useEffect(() => {
+    if (!loading) notifyUpdated()
+  }, [loading])
 
   const openModal = useCallback(async (card) => {
     setSelectedCard(card)
     setModalTickets([])
-
     if (card.label === 'Pending Approvals') return
-
     setLoadingTickets(true)
     try {
       const statusParam = {
-        'Total Tickets': '',
-        'Open': 'open',
-        'In Progress': 'in_progress',
-        'Resolved': 'resolved',
-        'Escalated': 'escalated',
+        'Total Tickets': '', 'Open': 'open', 'In Progress': 'in_progress',
+        'Resolved': 'resolved', 'Escalated': 'escalated',
       }[card.label] ?? ''
-
-      const url = statusParam
-        ? `/tickets?status=${statusParam}&per_page=6`
-        : '/tickets?per_page=6'
-
+      const url = statusParam ? `/tickets?status=${statusParam}&per_page=6` : '/tickets?per_page=6'
       const r = await client.get(url)
       setModalTickets(r.data?.tickets ?? r.data?.items ?? [])
     } catch {
@@ -61,15 +63,15 @@ export default function Dashboard() {
   if (loading) return <LoadingSpinner size="lg" text="Loading dashboard…" />
 
   const cards = [
-    { label: 'Total Tickets', value: stats?.total ?? 0, icon: 'bi-ticket-detailed-fill', color: 'blue', link: '/tickets' },
-    { label: 'Open', value: stats?.open ?? 0, icon: 'bi-folder2-open', color: 'yellow', link: '/tickets?status=open' },
-    { label: 'In Progress', value: stats?.in_progress ?? 0, icon: 'bi-arrow-repeat', color: 'cyan', link: '/tickets?status=in_progress' },
-    { label: 'Resolved', value: stats?.resolved ?? 0, icon: 'bi-check-circle-fill', color: 'green', link: '/tickets?status=resolved' },
+    { label: 'Total Tickets', value: stats?.total ?? 0,       icon: 'bi-ticket-detailed-fill', color: 'blue',   link: '/tickets' },
+    { label: 'Open',          value: stats?.open ?? 0,         icon: 'bi-folder2-open',         color: 'yellow', link: '/tickets?status=open' },
+    { label: 'In Progress',   value: stats?.in_progress ?? 0,  icon: 'bi-arrow-repeat',         color: 'cyan',   link: '/tickets?status=in_progress' },
+    { label: 'Resolved',      value: stats?.resolved ?? 0,     icon: 'bi-check-circle-fill',    color: 'green',  link: '/tickets?status=resolved' },
   ]
 
   if (user?.role === 'admin') {
-    cards.push({ label: 'Escalated', value: stats?.escalated ?? 0, icon: 'bi-exclamation-triangle-fill', color: 'red', link: '/tickets?status=escalated' })
-    cards.push({ label: 'Pending Approvals', value: stats?.pending_users ?? 0, icon: 'bi-person-check-fill', color: 'gray', link: '/admin/users' })
+    cards.push({ label: 'Escalated',         value: stats?.escalated ?? 0,    icon: 'bi-exclamation-triangle-fill', color: 'red',  link: '/tickets?status=escalated' })
+    cards.push({ label: 'Pending Approvals', value: stats?.pending_users ?? 0, icon: 'bi-person-check-fill',         color: 'gray', link: '/admin/users' })
   }
 
   return (
@@ -79,9 +81,12 @@ export default function Dashboard() {
           <h1 className="page-title">👋 Welcome back, {user?.full_name?.split(' ')[0]}!</h1>
           <p className="page-subtitle">Here's what's happening with your tickets today.</p>
         </div>
-        <Link to="/tickets/new" className="btn btn-primary">
-          <i className="bi bi-plus-circle" /> New Ticket
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <RefreshIndicator lastUpdated={lastUpdated} isRefreshing={isRefreshing} onRefresh={refresh} />
+          <Link to="/tickets/new" className="btn btn-primary">
+            <i className="bi bi-plus-circle" /> New Ticket
+          </Link>
+        </div>
       </div>
 
       <div className="stats-grid">

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import client from '../api/client'
 import LoadingSpinner from '../components/LoadingSpinner'
+import RefreshIndicator from '../components/common/RefreshIndicator'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, ReferenceLine, Legend,
@@ -72,6 +74,9 @@ export default function Reports() {
 
   useEffect(() => { fetchStats() }, [])
 
+  const { lastUpdated, isRefreshing, refresh, notifyUpdated } = useAutoRefresh(fetchStats, 30000)
+  useEffect(() => { if (!loading && stats) notifyUpdated() }, [loading])
+
   const applyQuickPeriod = (p) => {
     setActivePeriod(p.label)
     if (!p.days) {
@@ -129,6 +134,7 @@ export default function Reports() {
           <h1 className="page-title">Reports</h1>
           <p className="page-subtitle">Ticket statistics and trends</p>
         </div>
+        <RefreshIndicator lastUpdated={lastUpdated} isRefreshing={isRefreshing} onRefresh={refresh} />
       </div>
 
       {/* Filters */}

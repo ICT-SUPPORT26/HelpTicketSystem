@@ -431,6 +431,11 @@ textarea.form-control { min-height: 100px; resize: vertical; }
 .timeline-meta { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
 
 /* ─── Status Tracker stepper pulse ─── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 @keyframes stepPulse {
   0%   { opacity: 0.8; transform: scale(1); }
   70%  { opacity: 0;   transform: scale(1.9); }

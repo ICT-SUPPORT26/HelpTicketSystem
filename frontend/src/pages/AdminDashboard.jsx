@@ -5,6 +5,8 @@ import { StatusBadge, PriorityBadge } from '../components/StatusBadge'
 import LoadingSpinner from '../components/LoadingSpinner'
 import DashboardCard from '../components/common/DashboardCard'
 import Modal from '../components/common/Modal'
+import RefreshIndicator from '../components/common/RefreshIndicator'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 
@@ -20,37 +22,36 @@ export default function AdminDashboard() {
   const [modalTickets, setModalTickets] = useState([])
   const [loadingTickets, setLoadingTickets] = useState(false)
 
-  useEffect(() => {
-    Promise.all([
+  const loadData = useCallback(async () => {
+    const [statsRes, internsRes] = await Promise.all([
       client.get('/dashboard/stats'),
       client.get('/users/interns/pending'),
-    ]).then(([statsRes, internsRes]) => {
-      setStats(statsRes.data)
-      setPendingInterns(internsRes.data)
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    ])
+    setStats(statsRes.data)
+    setPendingInterns(internsRes.data)
   }, [])
+
+  useEffect(() => {
+    loadData().finally(() => setLoading(false))
+  }, [loadData])
+
+  const { lastUpdated, isRefreshing, refresh, notifyUpdated } = useAutoRefresh(loadData, 30000)
+
+  useEffect(() => {
+    if (!loading) notifyUpdated()
+  }, [loading])
 
   const openModal = useCallback(async (card) => {
     setSelectedCard(card)
     setModalTickets([])
-
     if (card.label === 'Pending Approvals') return
-
     setLoadingTickets(true)
     try {
       const statusParam = {
-        'Total Tickets': '',
-        'Open': 'open',
-        'In Progress': 'in_progress',
-        'Resolved': 'resolved',
-        'Escalated': 'escalated',
+        'Total Tickets': '', 'Open': 'open', 'In Progress': 'in_progress',
+        'Resolved': 'resolved', 'Escalated': 'escalated',
       }[card.label] ?? ''
-
-      const url = statusParam
-        ? `/tickets?status=${statusParam}&per_page=6`
-        : '/tickets?per_page=6'
-
+      const url = statusParam ? `/tickets?status=${statusParam}&per_page=6` : '/tickets?per_page=6'
       const r = await client.get(url)
       setModalTickets(r.data?.tickets ?? r.data?.items ?? [])
     } catch {
@@ -105,7 +106,8 @@ export default function AdminDashboard() {
           <h1 className="page-title">Admin Dashboard</h1>
           <p className="page-subtitle">System overview and management</p>
         </div>
-        <div className="flex gap-8">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <RefreshIndicator lastUpdated={lastUpdated} isRefreshing={isRefreshing} onRefresh={refresh} />
           <Link to="/admin/users" className="btn btn-secondary btn-sm"><i className="bi bi-people" /> Manage Users</Link>
           <Link to="/tickets/new" className="btn btn-primary btn-sm"><i className="bi bi-plus-circle" /> New Ticket</Link>
         </div>
@@ -119,7 +121,6 @@ export default function AdminDashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
         <div>
-          {/* Recent Tickets */}
           <div className="card mb-16">
             <div className="card-header">
               <h3><i className="bi bi-clock-history" style={{ marginRight: 8 }} />Recent Tickets</h3>
@@ -152,7 +153,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Quick Actions */}
           <div className="card">
             <div className="card-header"><h3>Quick Actions</h3></div>
             <div className="card-body" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -165,7 +165,6 @@ export default function AdminDashboard() {
         </div>
 
         <div>
-          {/* Pending Interns */}
           <div className="card mb-16">
             <div className="card-header">
               <h3>Pending Approvals</h3>
@@ -188,7 +187,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Add Category */}
           <div className="card">
             <div className="card-header"><h3>Add Category</h3></div>
             <div className="card-body">
