@@ -2439,8 +2439,8 @@ def get_current_timestamp():
 @app.route('/api/reports-data', methods=['GET'])
 @login_required
 def get_reports_data():
-    task = generate_report_data.apply_async()
-    return jsonify({"task_id": task.id})# Reports Management Routes
+    result = generate_report_data()
+    return jsonify(result)
 # Add these routes to routes.py at the end of the file
 
 def get_file_category(filename, content_type):
