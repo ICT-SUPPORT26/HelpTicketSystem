@@ -1,0 +1,91 @@
+Create a professional, enterprise-grade React modal component for the HelpTicketSystem dashboard using React.js, Tailwind CSS, and React Hooks.
+
+Design Requirements:
+
+* Match the existing HelpTicketSystem dashboard theme and styling.
+* Modern glassmorphism design with backdrop blur.
+* Clean, professional appearance suitable for a university or corporate help desk system.
+* Rounded corners (16px–20px radius).
+* Subtle shadow and elevation effects.
+* Smooth animations using Tailwind transitions.
+* Fully responsive on desktop, tablet, and mobile.
+
+Modal Behavior:
+
+* Clicking any dashboard statistics card should open a modal.
+* The modal should dynamically display information based on the selected card.
+* Support cards such as:
+
+  * Open Tickets
+  * In Progress Tickets
+  * Resolved Tickets
+  * Closed Tickets
+  * Users
+  * Departments
+* Pass card data through props.
+
+Overlay Requirements:
+
+* Dark semi-transparent overlay covering the entire screen.
+* Apply backdrop blur effect to the page behind the modal.
+* Prevent page scrolling while modal is open.
+
+Animation Requirements:
+
+* Fade in overlay.
+* Scale modal from 95% to 100% on open.
+* Fade and scale out on close.
+* Animation duration between 250ms and 350ms.
+* Smooth easing transitions.
+
+Modal Layout:
+Header:
+
+* Dynamic title based on selected card.
+* Icon corresponding to card type.
+* Close (X) button in top-right corner.
+
+Body:
+
+* Summary statistics.
+* Description section.
+* Optional list of recent records.
+* Scrollable content area if data exceeds viewport height.
+
+Footer:
+
+* Close button.
+* Optional View Details button.
+* Buttons aligned to the right.
+
+Accessibility:
+
+* Close modal on:
+
+  * Escape key
+  * Clicking outside modal
+  * Clicking Close button
+* Trap keyboard focus inside modal.
+* Add proper ARIA attributes.
+* Ensure keyboard navigation support.
+
+Code Requirements:
+
+* Use React functional components only.
+* Use useState and useEffect hooks.
+* Separate modal into reusable component:
+
+  * components/common/Modal.jsx
+* Create reusable DashboardCard component.
+* Keep code modular and production-ready.
+* Include complete JSX and Tailwind CSS classes.
+* Avoid inline styles unless necessary.
+
+Integration:
+
+* Show exactly how to integrate the modal into the Dashboard page.
+* Demonstrate opening different modal content depending on the clicked dashboard card.
+* Include sample card data and state management logic.
+
+Expected Result:
+When a user clicks a dashboard card, a polished animated modal appears with a blurred background, detailed statistics, professional styling, smooth transitions, responsive behavior, and enterprise-level user experience consistent with the HelpTicketSystem dashboard.

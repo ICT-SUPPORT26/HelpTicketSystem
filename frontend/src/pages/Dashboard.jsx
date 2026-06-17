@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import client from '../api/client'
 import { StatusBadge, PriorityBadge } from '../components/StatusBadge'
 import LoadingSpinner from '../components/LoadingSpinner'
+import DashboardCard from '../components/common/DashboardCard'
+import Modal from '../components/common/Modal'
 import { format } from 'date-fns'
 
 export default function Dashboard() {
@@ -12,8 +14,48 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  const [selectedCard, setSelectedCard] = useState(null)
+  const [modalTickets, setModalTickets] = useState([])
+  const [loadingTickets, setLoadingTickets] = useState(false)
+
   useEffect(() => {
-    client.get('/dashboard/stats').then(r => { setStats(r.data); setLoading(false) }).catch(() => setLoading(false))
+    client.get('/dashboard/stats')
+      .then(r => { setStats(r.data); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  const openModal = useCallback(async (card) => {
+    setSelectedCard(card)
+    setModalTickets([])
+
+    if (card.label === 'Pending Approvals') return
+
+    setLoadingTickets(true)
+    try {
+      const statusParam = {
+        'Total Tickets': '',
+        'Open': 'open',
+        'In Progress': 'in_progress',
+        'Resolved': 'resolved',
+        'Escalated': 'escalated',
+      }[card.label] ?? ''
+
+      const url = statusParam
+        ? `/tickets?status=${statusParam}&per_page=6`
+        : '/tickets?per_page=6'
+
+      const r = await client.get(url)
+      setModalTickets(r.data?.tickets ?? r.data?.items ?? [])
+    } catch {
+      setModalTickets([])
+    } finally {
+      setLoadingTickets(false)
+    }
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setSelectedCard(null)
+    setModalTickets([])
   }, [])
 
   if (loading) return <LoadingSpinner size="lg" text="Loading dashboard…" />
@@ -44,13 +86,7 @@ export default function Dashboard() {
 
       <div className="stats-grid">
         {cards.map(c => (
-          <div key={c.label} className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate(c.link)}>
-            <div className={`stat-icon ${c.color}`}><i className={`bi ${c.icon}`} /></div>
-            <div>
-              <div className="stat-number">{c.value}</div>
-              <div className="stat-label">{c.label}</div>
-            </div>
-          </div>
+          <DashboardCard key={c.label} card={c} onClick={openModal} />
         ))}
       </div>
 
@@ -96,6 +132,14 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      <Modal
+        isOpen={!!selectedCard}
+        onClose={closeModal}
+        card={selectedCard}
+        tickets={modalTickets}
+        loadingTickets={loadingTickets}
+      />
     </div>
   )
 }
