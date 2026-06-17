@@ -66,12 +66,25 @@ export default function NotificationDropdown() {
     if (next) fetchNotifications()
   }
 
+  const hasUnread = unread > 0
+
   return (
     <div className="dropdown" ref={ref}>
-      <button className="btn-icon" onClick={handleOpen} style={{ position: 'relative' }}>
-        <i className="bi bi-bell-fill" style={{ fontSize: 18 }} />
-        {unread > 0 && (
-          <span className="notif-badge" style={{ position: 'absolute', top: 0, right: 0, transform: 'translate(40%,-30%)' }}>
+      <button
+        className={`btn-icon bell-btn`}
+        onClick={handleOpen}
+        aria-label={hasUnread ? `${unread} unread notifications` : 'Notifications'}
+        title={hasUnread ? `${unread} unread notification${unread !== 1 ? 's' : ''}` : 'Notifications'}
+      >
+        <i
+          className={`bi bi-bell-fill${hasUnread ? ' bell-icon--shake' : ''}`}
+          style={{ fontSize: 18 }}
+        />
+        {hasUnread && (
+          <span
+            className="notif-badge notif-badge--pulse"
+            style={{ position: 'absolute', top: 0, right: 0, transform: 'translate(40%,-30%)' }}
+          >
             {unread > 99 ? '99+' : unread}
           </span>
         )}
@@ -80,30 +93,55 @@ export default function NotificationDropdown() {
       {open && (
         <div className="notif-dropdown">
           <div className="notif-header">
-            <span style={{ fontWeight: 600 }}>Notifications {unread > 0 && `(${unread})`}</span>
-            <button className="btn-icon" onClick={markAllRead} style={{ fontSize: 12, color: '#3b82f6' }}>
-              Mark all read
-            </button>
+            <span style={{ fontWeight: 600 }}>
+              Notifications{hasUnread && <span style={{ color: 'var(--danger)', marginLeft: 6 }}>({unread})</span>}
+            </span>
+            {hasUnread && (
+              <button className="btn-icon" onClick={markAllRead} style={{ fontSize: 12, color: '#3b82f6' }}>
+                Mark all read
+              </button>
+            )}
           </div>
           <div style={{ maxHeight: 360, overflowY: 'auto' }}>
             {loading ? (
               <div style={{ padding: 20, textAlign: 'center' }}><span className="spinner" /></div>
             ) : notifications.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
-                No notifications
+              <div style={{ padding: '32px 24px', textAlign: 'center', color: '#9ca3af' }}>
+                <i className="bi bi-bell-slash" style={{ fontSize: 28, display: 'block', marginBottom: 8, opacity: 0.4 }} />
+                <span style={{ fontSize: 13 }}>No notifications</span>
               </div>
             ) : (
               notifications.map(n => (
                 <div key={n.id} className={`notif-item ${!n.is_read ? 'unread' : ''}`} onClick={() => clickNotif(n)}>
-                  <div className="notif-title">{n.title}</div>
-                  <div className="notif-msg">{n.message}</div>
-                  <div className="notif-time">
-                    {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{
+                      width: 8, height: 8, borderRadius: '50%', marginTop: 4, flexShrink: 0,
+                      background: n.is_read ? 'transparent' : 'var(--primary)',
+                      border: n.is_read ? '2px solid var(--gray-300)' : 'none',
+                    }} />
+                    <div style={{ flex: 1 }}>
+                      <div className="notif-title">{n.title}</div>
+                      <div className="notif-msg">{n.message}</div>
+                      <div className="notif-time">
+                        {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))
             )}
           </div>
+          {notifications.length > 0 && (
+            <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => { navigate('/notifications/settings'); setOpen(false) }}
+              >
+                <i className="bi bi-gear" /> Notification Settings
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

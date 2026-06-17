@@ -261,6 +261,43 @@ textarea.form-control { min-height: 100px; resize: vertical; }
   font-size: 10px; font-weight: 700; padding: 1px 6px; min-width: 18px; text-align: center;
 }
 
+/* ─── Notification bell pulse & shake ─── */
+.bell-btn { position: relative; }
+
+/* Pulsing ring that radiates outward from the badge */
+.notif-badge--pulse::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  border: 2px solid var(--danger);
+  animation: badgePulse 1.8s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes badgePulse {
+  0%   { opacity: 0.9; transform: scale(1); }
+  70%  { opacity: 0;   transform: scale(2.2); }
+  100% { opacity: 0;   transform: scale(2.2); }
+}
+
+/* Bell icon shake when there are unread notifications */
+.bell-icon--shake {
+  display: inline-block;
+  animation: bellShake 3s ease-in-out infinite;
+  transform-origin: top center;
+}
+@keyframes bellShake {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  60%           { transform: rotate(14deg); }
+  65%           { transform: rotate(-12deg); }
+  70%           { transform: rotate(10deg); }
+  75%           { transform: rotate(-8deg); }
+  80%           { transform: rotate(5deg); }
+  85%           { transform: rotate(-3deg); }
+  90%           { transform: rotate(2deg); }
+  95%           { transform: rotate(0deg); }
+}
+
 /* ─── Filters ─── */
 .filter-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
 .filter-bar .form-control { width: auto; min-width: 140px; }
