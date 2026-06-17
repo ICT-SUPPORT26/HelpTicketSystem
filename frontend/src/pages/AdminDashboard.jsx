@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import client from '../api/client'
 import { StatusBadge, PriorityBadge } from '../components/StatusBadge'
 import LoadingSpinner from '../components/LoadingSpinner'
+import DashboardCard from '../components/common/DashboardCard'
+import Modal from '../components/common/Modal'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 
@@ -14,6 +16,10 @@ export default function AdminDashboard() {
   const [newCategory, setNewCategory] = useState('')
   const [addingCategory, setAddingCategory] = useState(false)
 
+  const [selectedCard, setSelectedCard] = useState(null)
+  const [modalTickets, setModalTickets] = useState([])
+  const [loadingTickets, setLoadingTickets] = useState(false)
+
   useEffect(() => {
     Promise.all([
       client.get('/dashboard/stats'),
@@ -23,6 +29,40 @@ export default function AdminDashboard() {
       setPendingInterns(internsRes.data)
       setLoading(false)
     }).catch(() => setLoading(false))
+  }, [])
+
+  const openModal = useCallback(async (card) => {
+    setSelectedCard(card)
+    setModalTickets([])
+
+    if (card.label === 'Pending Approvals') return
+
+    setLoadingTickets(true)
+    try {
+      const statusParam = {
+        'Total Tickets': '',
+        'Open': 'open',
+        'In Progress': 'in_progress',
+        'Resolved': 'resolved',
+        'Escalated': 'escalated',
+      }[card.label] ?? ''
+
+      const url = statusParam
+        ? `/tickets?status=${statusParam}&per_page=6`
+        : '/tickets?per_page=6'
+
+      const r = await client.get(url)
+      setModalTickets(r.data?.tickets ?? r.data?.items ?? [])
+    } catch {
+      setModalTickets([])
+    } finally {
+      setLoadingTickets(false)
+    }
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setSelectedCard(null)
+    setModalTickets([])
   }, [])
 
   async function approveIntern(id) {
@@ -50,12 +90,12 @@ export default function AdminDashboard() {
   if (loading) return <LoadingSpinner size="lg" text="Loading admin dashboard…" />
 
   const statCards = [
-    { label: 'Total Tickets', value: stats?.total ?? 0, icon: 'bi-ticket-detailed-fill', color: 'blue' },
-    { label: 'Open', value: stats?.open ?? 0, icon: 'bi-folder2-open', color: 'yellow' },
-    { label: 'In Progress', value: stats?.in_progress ?? 0, icon: 'bi-arrow-repeat', color: 'cyan' },
-    { label: 'Escalated', value: stats?.escalated ?? 0, icon: 'bi-exclamation-triangle-fill', color: 'red' },
-    { label: 'Resolved', value: stats?.resolved ?? 0, icon: 'bi-check-circle-fill', color: 'green' },
-    { label: 'Pending Approvals', value: pendingInterns.length, icon: 'bi-person-check-fill', color: 'gray' },
+    { label: 'Total Tickets',     value: stats?.total ?? 0,        icon: 'bi-ticket-detailed-fill',      color: 'blue',   link: '/tickets' },
+    { label: 'Open',              value: stats?.open ?? 0,          icon: 'bi-folder2-open',              color: 'yellow', link: '/tickets?status=open' },
+    { label: 'In Progress',       value: stats?.in_progress ?? 0,   icon: 'bi-arrow-repeat',              color: 'cyan',   link: '/tickets?status=in_progress' },
+    { label: 'Escalated',         value: stats?.escalated ?? 0,     icon: 'bi-exclamation-triangle-fill', color: 'red',    link: '/tickets?status=escalated' },
+    { label: 'Resolved',          value: stats?.resolved ?? 0,      icon: 'bi-check-circle-fill',         color: 'green',  link: '/tickets?status=resolved' },
+    { label: 'Pending Approvals', value: pendingInterns.length,      icon: 'bi-person-check-fill',         color: 'gray',   link: '/admin/users' },
   ]
 
   return (
@@ -73,10 +113,7 @@ export default function AdminDashboard() {
 
       <div className="stats-grid">
         {statCards.map(c => (
-          <div key={c.label} className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/tickets')}>
-            <div className={`stat-icon ${c.color}`}><i className={`bi ${c.icon}`} /></div>
-            <div><div className="stat-number">{c.value}</div><div className="stat-label">{c.label}</div></div>
-          </div>
+          <DashboardCard key={c.label} card={c} onClick={openModal} />
         ))}
       </div>
 
@@ -168,6 +205,14 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={!!selectedCard}
+        onClose={closeModal}
+        card={selectedCard}
+        tickets={modalTickets}
+        loadingTickets={loadingTickets}
+      />
     </div>
   )
 }
