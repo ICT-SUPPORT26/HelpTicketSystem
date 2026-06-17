@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import client from '../api/client'
 import { StatusBadge, PriorityBadge } from '../components/StatusBadge'
 import LoadingSpinner from '../components/LoadingSpinner'
+import StatusTracker from '../components/common/StatusTracker'
 import toast from 'react-hot-toast'
 import { format, formatDistanceToNow } from 'date-fns'
 
@@ -314,30 +315,8 @@ export default function TicketDetail() {
             </div>
           </div>
 
-          {/* History */}
-          {ticket.history?.length > 0 && (
-            <div className="card">
-              <div className="card-header"><h3>Activity History</h3></div>
-              <div className="card-body">
-                <div className="timeline">
-                  {ticket.history.map(h => (
-                    <div key={h.id} className="timeline-item">
-                      <div className="timeline-dot" />
-                      <div className="timeline-content">
-                        <div className="timeline-action">
-                          {h.action}{h.field_changed ? ` — ${h.field_changed}` : ''}
-                          {h.old_value && h.new_value && <span style={{ color: '#6b7280' }}> ({h.old_value} → {h.new_value})</span>}
-                        </div>
-                        <div className="timeline-meta">
-                          by {h.user?.full_name} · {formatDistanceToNow(new Date(h.timestamp), { addSuffix: true })}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Status Tracker + Activity Timeline */}
+          <StatusTracker ticket={ticket} />
         </div>
 
         {/* Sidebar Info */}
