@@ -1,0 +1,193 @@
+# FULL FLASK → REACT + NODE.JS/EXPRESS MIGRATION
+
+You are a Senior Full-Stack Software Architect.
+
+Your task is to completely convert this project from a Flask (Python) architecture into a pure React + Node.js/Express architecture.
+
+CRITICAL REQUIREMENTS:
+
+1. COMPLETE TECHNOLOGY STACK REPLACEMENT
+
+   * Remove Flask entirely.
+   * Remove all Python dependencies.
+   * Remove all Flask routes.
+   * Remove all Flask templates.
+   * Remove Jinja2 rendering.
+   * Remove requirements.txt.
+   * Remove main.py, app.py, wsgi.py, and any Python startup files.
+   * Remove virtual environment references.
+   * Remove Poetry, Pip, Gunicorn, and Flask configurations.
+   * The final project must contain ZERO Python code.
+
+2. PRESERVE ALL FEATURES
+   Analyze the entire existing system and migrate every feature exactly as it currently works.
+
+   Preserve:
+
+   * Authentication
+   * User Management
+   * Ticket Management
+   * Ticket Assignment
+   * Ticket Status Tracking
+   * Dashboard Statistics
+   * Notifications
+   * Reports
+   * File Uploads
+   * Role-Based Access Control
+   * Search and Filters
+   * Comments and Activity Logs
+   * Any Admin Features
+   * Any Existing APIs
+
+   No functionality should be lost.
+
+3. REACT FRONTEND
+   Convert the application into a standalone React SPA.
+
+   Requirements:
+
+   * React 19+
+   * React Router
+   * Axios
+   * Context API or Redux Toolkit
+   * Responsive Design
+   * Preserve existing UI layout
+   * Preserve all existing styling
+   * Preserve colors, branding, logos, icons, and navigation
+
+   The UI should look identical to the current application.
+
+4. NODE.JS BACKEND
+
+   Create:
+
+   /backend
+   /controllers
+   /routes
+   /models
+   /middleware
+   /services
+   /config
+   server.js
+
+   Use:
+
+   * Node.js
+   * Express.js
+   * JWT Authentication
+   * bcrypt password hashing
+   * Multer for uploads
+   * Express Middleware
+   * Environment Variables
+
+5. DATABASE MIGRATION
+
+   Analyze the Flask database layer.
+
+   Recreate:
+
+   * All tables
+   * Relationships
+   * Constraints
+   * Indexes
+   * Seed data
+
+   If Flask uses SQLAlchemy:
+
+   * Convert models to Sequelize or Prisma.
+
+   Ensure identical database behavior.
+
+6. API COMPATIBILITY
+
+   Every Flask endpoint must be recreated in Express.
+
+   Preserve:
+
+   * Route names
+   * HTTP methods
+   * Request payload structure
+   * Response JSON structure
+   * Status codes
+   * Validation behavior
+   * Error messages
+
+   The React frontend must not require endpoint modifications.
+
+7. SECURITY
+
+   Implement:
+
+   * JWT Authentication
+   * Role-based authorization
+   * Password hashing
+   * CORS
+   * Input validation
+   * Rate limiting
+   * Helmet
+   * XSS protection
+   * SQL injection protection
+
+8. REPLIT CONFIGURATION
+
+   Configure Replit to run:
+
+   Frontend:
+   npm run dev
+
+   Backend:
+   npm run server
+
+   Or a single command:
+
+   npm run start
+
+   using concurrently.
+
+9. CLEANUP
+
+   Delete all Flask/Python artifacts after migration.
+
+   Final project should contain only:
+
+   /frontend (React)
+   /backend (Node.js Express)
+
+   No Flask code should remain.
+
+10. DELIVERABLES
+
+Produce:
+
+* Updated folder structure
+* Backend Express code
+* React code updates
+* Environment configuration
+* Package.json files
+* Migration summary
+* List of removed Flask files
+* List of recreated Express endpoints
+
+11. VALIDATION
+
+Before finishing:
+
+* Verify every Flask route exists in Express.
+* Verify every page works.
+* Verify authentication works.
+* Verify database operations work.
+* Verify file uploads work.
+* Verify dashboard statistics work.
+* Verify no Python dependency remains.
+
+12. IMPORTANT
+
+Do NOT create a hybrid Flask + Express application.
+
+Do NOT keep Flask as a fallback.
+
+Do NOT proxy requests to Flask.
+
+Do NOT run Flask and Node simultaneously.
+
+The final result must be a completely standalone React + Node.js/Express application with identical functionality and UI.
