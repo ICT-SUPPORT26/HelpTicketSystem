@@ -143,7 +143,7 @@ async function seedDefaults(client) {
     VALUES ($1, $2, $3, $4, 'admin', TRUE, TRUE, TRUE)
     ON CONFLICT (username) DO UPDATE SET
       password_hash = CASE
-        WHEN EXCLUDED.password_hash NOT LIKE '$2%' THEN $3
+        WHEN "user".password_hash NOT LIKE '$2%' THEN $3
         ELSE "user".password_hash
       END
   `, ['215030', 'admin@helpticketsystem.com', adminHash, 'System Administrator']);
@@ -153,7 +153,7 @@ async function seedDefaults(client) {
     VALUES ($1, $2, $3, $4, 'intern', TRUE, TRUE, TRUE)
     ON CONFLICT (username) DO UPDATE SET
       password_hash = CASE
-        WHEN EXCLUDED.password_hash NOT LIKE '$2%' THEN $3
+        WHEN "user".password_hash NOT LIKE '$2%' THEN $3
         ELSE "user".password_hash
       END
   `, ['dctraining', 'intern@helpticketsystem.com', internHash, 'Dctraining']);

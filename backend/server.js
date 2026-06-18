@@ -40,6 +40,7 @@ const userRoutes = require('./routes/users');
 const notificationRoutes = require('./routes/notifications');
 const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
+const analyticsRoutes = require('./routes/analytics');
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/tickets', ticketRoutes);
@@ -48,7 +49,7 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/reports', reportRoutes);
-app.use('/api/v1/analytics', reportRoutes);
+app.use('/api/v1/analytics', analyticsRoutes);
 
 app.get('/api/v1/attachments/:filename', requireAuth, loadUser, async (req, res) => {
   const { filename } = req.params;
