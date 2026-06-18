@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -10,10 +10,12 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  if (user) {
-    const to = user.role === 'admin' ? '/admin' : '/dashboard'
-    navigate(to, { replace: true })
-  }
+  useEffect(() => {
+    if (user) {
+      const to = user.role === 'admin' ? '/admin' : '/dashboard'
+      navigate(to, { replace: true })
+    }
+  }, [user, navigate])
 
   const from = location.state?.from?.pathname || null
 
