@@ -22,11 +22,11 @@ router.get('/recent', requireAuth, loadUser, async (req, res) => {
     let query = `SELECT * FROM notification WHERE user_id = $1`;
     const params = [req.user.id];
     if (since) {
-      try {
-        const sinceDate = new Date(since);
+      const sinceDate = new Date(since);
+      if (!isNaN(sinceDate.getTime())) {
         query += ` AND created_at > $2`;
         params.push(sinceDate);
-      } catch {}
+      }
     }
     query += ` ORDER BY created_at DESC LIMIT 10`;
     const { rows } = await pool.query(query, params);

@@ -1,10 +1,40 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 const { requireAuth, loadUser, JWT_SECRET } = require('../middleware/auth');
 const { userToDict } = require('../utils/serializers');
+
+function verifyWerkzeugScrypt(password, storedHash) {
+  try {
+    const parts = storedHash.split('$');
+    if (parts.length !== 3) return false;
+    const [method, saltB64, hashB64] = parts;
+    const methodParts = method.split(':');
+    if (methodParts[0] !== 'scrypt' || methodParts.length < 4) return false;
+    const N = parseInt(methodParts[1]);
+    const r = parseInt(methodParts[2]);
+    const p = parseInt(methodParts[3]);
+    const salt = Buffer.from(saltB64, 'base64');
+    const expected = Buffer.from(hashB64, 'base64');
+    const derived = crypto.scryptSync(password, salt, expected.length, { N, r, p });
+    return crypto.timingSafeEqual(derived, expected);
+  } catch {
+    return false;
+  }
+}
+
+async function verifyPassword(password, storedHash) {
+  if (storedHash.startsWith('$2')) {
+    return bcrypt.compare(password, storedHash);
+  }
+  if (storedHash.startsWith('scrypt:')) {
+    return verifyWerkzeugScrypt(password, storedHash);
+  }
+  return false;
+}
 
 const ACCESS_EXPIRES = '30m';
 const REFRESH_EXPIRES = '7d';
@@ -26,12 +56,17 @@ router.post('/login', async (req, res) => {
     const user = rows[0];
     if (!user) return res.status(401).json({ error: 'Invalid username or password' });
 
-    const match = await bcrypt.compare(password, user.password_hash);
+    const match = await verifyPassword(password, user.password_hash);
     if (!match) return res.status(401).json({ error: 'Invalid username or password' });
 
     if (!user.is_active) return res.status(403).json({ error: 'Account is deactivated. Contact administrator.' });
     if (!user.is_verified) return res.status(403).json({ error: 'Email not verified. Please verify your email.' });
     if (user.role === 'intern' && !user.is_approved) return res.status(403).json({ error: 'Intern account pending admin approval.' });
+
+    if (!user.password_hash.startsWith('$2')) {
+      const newHash = await bcrypt.hash(password, 10);
+      pool.query('UPDATE "user" SET password_hash = $1 WHERE id = $2', [newHash, user.id]).catch(() => {});
+    }
 
     res.json({
       access_token: signAccess(user.id),
