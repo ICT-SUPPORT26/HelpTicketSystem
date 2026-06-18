@@ -1,1 +1,1 @@
-- [React migration architecture](react-migration.md) — Flask on 8000 (console), React Vite on 5000 (webview), JWT auth, Vite proxies /api/* and /uploads/*
+- [Node.js backend architecture](node-backend.md) — Flask fully replaced by Express on port 8000; React Vite on 5000 proxies /api/* and /uploads/*
