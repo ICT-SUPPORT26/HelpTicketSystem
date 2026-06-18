@@ -11,6 +11,9 @@ function requireAuth(req, res, next) {
   const token = authHeader.slice(7);
   try {
     const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.refresh === true) {
+      return res.status(401).json({ error: 'Refresh tokens cannot be used for API access' });
+    }
     req.userId = parseInt(payload.sub || payload.identity || payload.id, 10);
     req.tokenPayload = payload;
     next();

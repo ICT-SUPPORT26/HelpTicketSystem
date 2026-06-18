@@ -98,12 +98,10 @@ router.post('/', requireAuth, loadUser, async (req, res) => {
     return res.status(400).json({ error: 'username, email, full_name, password are required' });
   }
   try {
-    const dup = await pool.query(`SELECT id FROM "user" WHERE username = $1 OR email = $2`, [username, email]);
-    if (dup.rows.length) {
-      const existing = dup.rows[0];
-      const conflict = dup.rows.find(r => r.username === username) ? 'Username' : 'Email';
-      return res.status(409).json({ error: `${conflict} already exists` });
-    }
+    const dupUsername = await pool.query(`SELECT id FROM "user" WHERE username = $1`, [username]);
+    if (dupUsername.rows.length) return res.status(409).json({ error: 'Username already exists' });
+    const dupEmail = await pool.query(`SELECT id FROM "user" WHERE email = $1`, [email]);
+    if (dupEmail.rows.length) return res.status(409).json({ error: 'Email already exists' });
     const hash = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
       `INSERT INTO "user" (username, email, full_name, password_hash, role, is_active, is_verified, is_approved)
